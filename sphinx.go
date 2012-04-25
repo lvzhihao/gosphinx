@@ -602,6 +602,7 @@ func (sc *SphinxClient) RunQueries() (results []SphinxResult, err error) {
 	p := 0
 	for i := 0; i < nreqs; i++ {
 		var result = SphinxResult{Status: -1} // Default value of stauts is 0, but SEARCHD_OK = 0, so must set it to another num.
+
 		result.Status = int(binary.BigEndian.Uint32(response[p : p+4]))
 		p += 4
 		if result.Status != SEARCHD_OK {
@@ -613,7 +614,8 @@ func (sc *SphinxClient) RunQueries() (results []SphinxResult, err error) {
 			if result.Status == SEARCHD_WARNING {
 				result.Warning = string(message)
 			} else {
-				result.Error = errors.New(string(message))
+				err = errors.New(string(message))
+				result.Error = err
 				continue
 			}
 		}
@@ -734,10 +736,11 @@ func (sc *SphinxClient) RunQueries() (results []SphinxResult, err error) {
 			result.Words[wordNum].Hits = int(binary.BigEndian.Uint32(response[p : p+4]))
 			p += 4
 		}
+
 		results = append(results, result)
 	}
 
-	return results, nil
+	return
 }
 
 func (sc *SphinxClient) ResetFilters(){
