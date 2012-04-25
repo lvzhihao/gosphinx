@@ -333,7 +333,7 @@ func (sc *SphinxClient) SetSortMode(mode int, sortBy string) error {
 		return fmt.Errorf("SetSortMode -> sortby string must not be empty in selected mode: %d\n", mode)
 	}
 	
-	sc.mode = mode
+	sc.sort = mode
 	sc.sortBy = sortBy
 	return nil
 }
