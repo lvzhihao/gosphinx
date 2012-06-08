@@ -107,6 +107,12 @@ const(
 	SPH_FILTER_FLOATRANGE
 )
 
+var(
+	Host	= "localhost"
+	Port  = 9312
+	Socket = ""
+)
+
 type filter struct {
 	attr       string
 	filterType int
@@ -154,7 +160,7 @@ type SphinxResult struct {
 type SphinxClient struct {
 	host string
 	port int
-	path string
+	socket string // Unix socket
 	conn net.Conn
 
 	offset        int    // how many records to seek from result-set start
@@ -195,11 +201,15 @@ type SphinxClient struct {
 
 func NewSphinxClient() (sc *SphinxClient) {
 	sc = new(SphinxClient)
-	sc.host = "localhost"
-	sc.port = 9312
+	if Socket != "" {
+		sc.socket = Socket
+	} else {
+		sc.host = Host
+		sc.port = Port
+	}
 
 	sc.limit = 20
-	sc.mode = SPH_MATCH_ALL
+	sc.mode = SPH_MATCH_EXTENDED //When you use one of the legacy modes, Sphinx internally converts the query to the appropriate new syntax and chooses the appropriate ranker.
 	sc.sort = SPH_SORT_RELEVANCE
 	sc.groupFunc = SPH_GROUPBY_DAY
 	sc.groupSort = "@group desc"
@@ -217,17 +227,25 @@ func (sc *SphinxClient) GetLastWarning() string {
 	return sc.warning
 }
 
+// Note: this func also can set sc.socket(unix socket).
+// For convenience, you can set SphinxHost, SphinxPort, SphinxSocket as default value,
+// then you don't need to call SetServer() every time.
 func (sc *SphinxClient) SetServer(host string, port int) error {
-	if host == "" {	return errors.New("SetServer -> host is empty!\n") }	
-	sc.host = host
-	if host[:1] == "/" {
-		sc.path = host
-	}
-	if host[:7] == "unix://" {
-		sc.path = host[7:]
+	// if host == "" , then just use the SphinxHost
+	if host != "" {
+		sc.host = host
 	}
 	
-	if port <= 0 { return fmt.Errorf("SetServer -> port must be positive: %d\n", port) }
+	if host[:1] == "/" {
+		sc.socket = host
+	}
+	if host[:7] == "unix://" {
+		sc.socket = host[7:]
+	}
+	
+	if port <= 0 {
+		return fmt.Errorf("SetServer -> port must be positive: %d\n", port)
+	}
 	sc.port = port
 	return nil
 }
@@ -1041,8 +1059,8 @@ func (sc *SphinxClient) connect() (conn net.Conn, err error) {
 	sc.connerror = false
 	
 	// Try unix socket first.
-	if sc.path != "" {
-		conn, err = net.Dial("unix", sc.path)
+	if sc.socket != "" {
+		conn, err = net.Dial("unix", sc.socket)
 		if err != nil {
 			sc.connerror = true
 			return nil, err
