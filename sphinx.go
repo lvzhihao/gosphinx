@@ -228,7 +228,7 @@ func (sc *SphinxClient) GetLastWarning() string {
 }
 
 // Note: this func also can set sc.socket(unix socket).
-// For convenience, you can set SphinxHost, SphinxPort, SphinxSocket as default value,
+// For convenience, you can set gosphinx.Host, gosphinx.Port, gosphinx.Socket as default value,
 // then you don't need to call SetServer() every time.
 func (sc *SphinxClient) SetServer(host string, port int) error {
 	// if host == "" , then just use the SphinxHost
@@ -244,15 +244,15 @@ func (sc *SphinxClient) SetServer(host string, port int) error {
 	}
 	
 	if port <= 0 {
-		return fmt.Errorf("SetServer -> port must be positive: %d\n", port)
+		return fmt.Errorf("SetServer > port must be positive: %d\n", port)
 	}
 	sc.port = port
 	return nil
 }
 
 func (sc *SphinxClient) SetRetries(count, delay int) error {
-	if count < 0 { return fmt.Errorf("SetRetries -> count must not be negative: %d\n", count) }
-	if delay < 0 { return fmt.Errorf("SetRetries -> delay must not be negative: %d\n", delay) }
+	if count < 0 { return fmt.Errorf("SetRetries > count must not be negative: %d\n", count) }
+	if delay < 0 { return fmt.Errorf("SetRetries > delay must not be negative: %d\n", delay) }
 	
 	sc.retryCount = count
 	sc.retryDelay = delay
@@ -260,7 +260,7 @@ func (sc *SphinxClient) SetRetries(count, delay int) error {
 }
 
 func (sc *SphinxClient) SetConnectTimeout(timeout int) error {
-	if timeout < 0 { return fmt.Errorf("SetConnectTimeout -> connect timeout must not be negative: %d\n", timeout) }
+	if timeout < 0 { return fmt.Errorf("SetConnectTimeout > connect timeout must not be negative: %d\n", timeout) }
 	
 	sc.timeout = timeout
 	return nil
@@ -274,10 +274,18 @@ func (sc *SphinxClient) IsConnectError() bool {
 
 // Set matches offset and limit to return to client, max matches to retrieve on server, and cutoff.
 func (sc *SphinxClient) SetLimits(offset, limit, maxMatches, cutoff int) error {
-	if offset < 0 { return fmt.Errorf("SetLimits -> offset must not be negative: %d\n", offset) }
-	if limit <= 0 {	return fmt.Errorf("SetLimits -> limit must be positive: %d\n", limit) }
-	if maxMatches <= 0 { return fmt.Errorf("SetLimits -> maxMatches must be positive: %d\n", maxMatches) }
-	if cutoff < 0 { return fmt.Errorf("SetLimits -> cutoff must not be negative: %d\n", cutoff) }
+	if offset < 0 {
+		return fmt.Errorf("SetLimits > offset must not be negative: %d\n", offset)
+	}
+	if limit <= 0 {
+		return fmt.Errorf("SetLimits > limit must be positive: %d\n", limit)
+	}
+	if maxMatches <= 0 {
+		return fmt.Errorf("SetLimits > maxMatches must be positive: %d\n", maxMatches)
+	}
+	if cutoff < 0 {
+		return fmt.Errorf("SetLimits > cutoff must not be negative: %d\n", cutoff)
+	}
 	
 	sc.offset = offset
 	sc.limit = limit
@@ -292,17 +300,17 @@ func (sc *SphinxClient) SetLimits(offset, limit, maxMatches, cutoff int) error {
 
 // Set maximum query time, in milliseconds, per-index, 0 means "do not limit".
 func (sc *SphinxClient) SetMaxQueryTime(maxQueryTime int) error {
-	if maxQueryTime < 0 { return fmt.Errorf("SetMaxQueryTime -> maxQueryTime must not be negative: %d\n", maxQueryTime) }
+	if maxQueryTime < 0 { return fmt.Errorf("SetMaxQueryTime > maxQueryTime must not be negative: %d\n", maxQueryTime) }
 	
 	sc.maxQueryTime = maxQueryTime
 	return nil
 }
 
 func (sc *SphinxClient) SetOverride(attrName string, attrType int, values map[uint64]interface{}) error {
-	if attrName == "" { return errors.New("SetOverride -> attrName is empty!\n") }
+	if attrName == "" { return errors.New("SetOverride > attrName is empty!\n") }
 	// Min value is 'SPH_ATTR_INTEGER = 1', not '0'.
 	if (attrType < 1 || attrType > SPH_ATTR_STRING) && attrType != SPH_ATTR_MULTI && SPH_ATTR_MULTI != SPH_ATTR_MULTI64 {
-		return fmt.Errorf("SetOverride -> invalid attrType: %d\n", attrType)
+		return fmt.Errorf("SetOverride > invalid attrType: %d\n", attrType)
 	}
 	
 	sc.overrides[attrName] = override{
@@ -314,7 +322,7 @@ func (sc *SphinxClient) SetOverride(attrName string, attrType int, values map[ui
 }
 
 func (sc *SphinxClient) SetSelect(s string) error {
-	if s == "" { return errors.New("SetSelect -> selectStr is empty!\n") }
+	if s == "" { return errors.New("SetSelect > selectStr is empty!\n") }
 
 	sc.selectStr = s
 	return nil
@@ -324,7 +332,7 @@ func (sc *SphinxClient) SetSelect(s string) error {
 
 func (sc *SphinxClient) SetMatchMode(mode int) error {
 	if mode < 0 || mode > SPH_MATCH_EXTENDED2 {
-		return fmt.Errorf("SetMatchMode -> unknown mode value; use one of the SPH_MATCH_xxx constants: %d\n", mode)
+		return fmt.Errorf("SetMatchMode > unknown mode value; use one of the SPH_MATCH_xxx constants: %d\n", mode)
 	}
 	
 	sc.mode = mode
@@ -334,7 +342,7 @@ func (sc *SphinxClient) SetMatchMode(mode int) error {
 func (sc *SphinxClient) SetRankingMode(ranker int) error {
 	// ranker >= SPH_RANK_TOTAL
 	if ranker < 0 || ranker > SPH_RANK_TOTAL {
-		return fmt.Errorf("SetRankingMode -> unknown ranker value; use one of the SPH_RANK_xxx constants: %d\n", ranker)
+		return fmt.Errorf("SetRankingMode > unknown ranker value; use one of the SPH_RANK_xxx constants: %d\n", ranker)
 	}
 	
 	sc.ranker = ranker
@@ -343,12 +351,12 @@ func (sc *SphinxClient) SetRankingMode(ranker int) error {
 
 func (sc *SphinxClient) SetSortMode(mode int, sortBy string) error {
 	if mode < 0 || mode > SPH_SORT_EXPR {
-		return fmt.Errorf("SetSortMode -> unknown mode value; use one of the available SPH_SORT_xxx constants: %d\n", mode)
+		return fmt.Errorf("SetSortMode > unknown mode value; use one of the available SPH_SORT_xxx constants: %d\n", mode)
 	}
 	/*SPH_SORT_RELEVANCE ignores any additional parameters and always sorts matches by relevance rank.
 	All other modes require an additional sorting clause.*/
 	if (mode != SPH_SORT_RELEVANCE) && (sortBy == "") {
-		return fmt.Errorf("SetSortMode -> sortby string must not be empty in selected mode: %d\n", mode)
+		return fmt.Errorf("SetSortMode > sortby string must not be empty in selected mode: %d\n", mode)
 	}
 	
 	sc.sort = mode
@@ -360,7 +368,7 @@ func (sc *SphinxClient) SetFieldWeights(weights map[string]int) error {
 	// Default weight value is 1.
 	for field, weight := range weights {
 		if weight < 1 {
-			return fmt.Errorf("SetFieldWeights -> weights must be positive 32-bit integers, field:%s  weight:%d\n", field, weight)
+			return fmt.Errorf("SetFieldWeights > weights must be positive 32-bit integers, field:%s  weight:%d\n", field, weight)
 		}
 	}
 	
@@ -371,7 +379,7 @@ func (sc *SphinxClient) SetFieldWeights(weights map[string]int) error {
 func (sc *SphinxClient) SetIndexWeights(weights map[string]int) error {
 	for field, weight := range weights {
 		if weight < 1 {
-			return fmt.Errorf("SetIndexWeights -> weights must be positive 32-bit integers, field:%s  weight:%d\n", field, weight)
+			return fmt.Errorf("SetIndexWeights > weights must be positive 32-bit integers, field:%s  weight:%d\n", field, weight)
 		}
 	}
 
@@ -382,7 +390,7 @@ func (sc *SphinxClient) SetIndexWeights(weights map[string]int) error {
 /***** Result set filtering settings *****/
 
 func (sc *SphinxClient) SetIDRange(min, max uint64) error {
-	if min > max {	return fmt.Errorf("SetIDRange -> min > max! min:%d  max:%d\n", min, max) }
+	if min > max {	return fmt.Errorf("SetIDRange > min > max! min:%d  max:%d\n", min, max) }
 
 	sc.minId = min
 	sc.maxId = max
@@ -390,8 +398,8 @@ func (sc *SphinxClient) SetIDRange(min, max uint64) error {
 }
 
 func (sc *SphinxClient) SetFilter(attr string, values []uint64, exclude bool) error {
-	if attr == "" { return fmt.Errorf("SetFilter -> attribute name is empty!\n") }
-	if len(values) == 0 { return fmt.Errorf("SetFilter -> values is empty!\n") }
+	if attr == "" { return fmt.Errorf("SetFilter > attribute name is empty!\n") }
+	if len(values) == 0 { return fmt.Errorf("SetFilter > values is empty!\n") }
 	
 	sc.filters = append(sc.filters, filter{
 		filterType : SPH_FILTER_VALUES,
@@ -403,8 +411,8 @@ func (sc *SphinxClient) SetFilter(attr string, values []uint64, exclude bool) er
 }
 
 func (sc *SphinxClient) SetFilterRange(attr string, umin, umax uint64, exclude bool) error {
-	if attr == "" { return fmt.Errorf("SetFilterRange -> attribute name is empty!\n") }
-	if umin > umax { return fmt.Errorf("SetFilterRange -> min > max! umin:%d  umax:%d\n", umin, umax) }
+	if attr == "" { return fmt.Errorf("SetFilterRange > attribute name is empty!\n") }
+	if umin > umax { return fmt.Errorf("SetFilterRange > min > max! umin:%d  umax:%d\n", umin, umax) }
 	
 	sc.filters = append(sc.filters, filter{
 		filterType : SPH_FILTER_RANGE,
@@ -417,8 +425,8 @@ func (sc *SphinxClient) SetFilterRange(attr string, umin, umax uint64, exclude b
 }
 
 func (sc *SphinxClient) SetFilterFloatRange(attr string, fmin, fmax float32, exclude bool) error {
-	if attr == "" { return fmt.Errorf("SetFilterFloatRange -> attribute name is empty!\n") }
-	if fmin > fmax { return fmt.Errorf("SetFilterFloatRange -> min > max! fmin:%d  fmax:%d\n", fmin, fmax) }
+	if attr == "" { return fmt.Errorf("SetFilterFloatRange > attribute name is empty!\n") }
+	if fmin > fmax { return fmt.Errorf("SetFilterFloatRange > min > max! fmin:%d  fmax:%d\n", fmin, fmax) }
 	
 	sc.filters = append(sc.filters, filter{
 		filterType : SPH_FILTER_FLOATRANGE,
@@ -431,8 +439,8 @@ func (sc *SphinxClient) SetFilterFloatRange(attr string, fmin, fmax float32, exc
 }
 
 func (sc *SphinxClient) SetGeoAnchor(latitudeAttr, longitudeAttr string, latitude, longitude float32) error {
-	if latitudeAttr == "" { return fmt.Errorf("SetGeoAnchor -> latitudeAttr is empty!\n") }
-	if longitudeAttr == "" { return fmt.Errorf("SetGeoAnchor -> longitudeAttr is empty!\n") }
+	if latitudeAttr == "" { return fmt.Errorf("SetGeoAnchor > latitudeAttr is empty!\n") }
+	if longitudeAttr == "" { return fmt.Errorf("SetGeoAnchor > longitudeAttr is empty!\n") }
 	
 	sc.latitudeAttr = latitudeAttr
 	sc.longitudeAttr = longitudeAttr
@@ -445,7 +453,7 @@ func (sc *SphinxClient) SetGeoAnchor(latitudeAttr, longitudeAttr string, latitud
 
 func (sc *SphinxClient) SetGroupBy(groupBy string, groupFunc int, groupSort string) error {
 	if groupFunc < 0 || groupFunc > SPH_GROUPBY_ATTRPAIR {
-		return fmt.Errorf("SetGroupBy -> unknown groupFunc value: '%d', use one of the available SPH_GROUPBY_xxx constants.\n", groupFunc)
+		return fmt.Errorf("SetGroupBy > unknown groupFunc value: '%d', use one of the available SPH_GROUPBY_xxx constants.\n", groupFunc)
 	}
 	
 	sc.groupBy = groupBy
@@ -584,7 +592,7 @@ func (sc *SphinxClient) AddQuery(query, index, comment string) (i int, err error
 			case SPH_ATTR_BIGINT:
 				req = writeInt64ToBytes(req, v.(uint64))
 			default:
-				return -1, fmt.Errorf("AddQuery -> attr value is not int/float32/uint64.\n")
+				return -1, fmt.Errorf("AddQuery > attr value is not int/float32/uint64.\n")
 			}
 		}
 	}
@@ -600,7 +608,7 @@ func (sc *SphinxClient) AddQuery(query, index, comment string) (i int, err error
 //Returns None on network IO failure; or an array of result set hashes on success.
 func (sc *SphinxClient) RunQueries() (results []SphinxResult, err error) {
 	if len(sc.reqs) == 0 {
-		return nil, fmt.Errorf("RunQueries -> No queries defined, issue AddQuery() first.\n")
+		return nil, fmt.Errorf("RunQueries > No queries defined, issue AddQuery() first.\n")
 	}
 
 	nreqs := len(sc.reqs)
@@ -805,11 +813,11 @@ type ExcerptsOpts struct {
 }
 
 func (sc *SphinxClient) BuildExcerpts(docs []string, index, words string, opts ExcerptsOpts) (resDocs []string, err error) {
-	if len(docs) == 0 { return nil, errors.New("BuildExcerpts -> Have no documents to process!\n") }
-	if index == "" { return nil, errors.New("BuildExcerpts -> index name is empty!\n") }
-	if words == "" { return nil, errors.New("BuildExcerpts -> Have no words to highlight!\n") }
+	if len(docs) == 0 { return nil, errors.New("BuildExcerpts > Have no documents to process!\n") }
+	if index == "" { return nil, errors.New("BuildExcerpts > index name is empty!\n") }
+	if words == "" { return nil, errors.New("BuildExcerpts > Have no words to highlight!\n") }
 	if opts.PassageBoundary != "" && opts.PassageBoundary != "sentence" && opts.PassageBoundary != "paragraph" && opts.PassageBoundary != "zone" {
-		return nil, fmt.Errorf("BuildExcerpts -> PassageBoundary allowed values are 'sentence', 'paragraph', and 'zone', now is: %s\n", opts.PassageBoundary)
+		return nil, fmt.Errorf("BuildExcerpts > PassageBoundary allowed values are 'sentence', 'paragraph', and 'zone', now is: %s\n", opts.PassageBoundary)
 	}
 	
 	// Default values, all bool values are default false.
@@ -879,14 +887,14 @@ func (sc *SphinxClient) BuildExcerpts(docs []string, index, words string, opts E
  'ndocs'	-1 on failure, amount of actually found and updated documents (might be 0) on success
 */
 func (sc *SphinxClient) UpdateAttributes(index string, attrs []string, values [][]interface{}) (ndocs int, err error) {
-	if index == "" { return -1, errors.New("UpdateAttributes -> index name is empty!\n") }
-	if len(attrs) == 0 { return -1, errors.New("UpdateAttributes -> no attribute names provided!\n") }
-	if len(values) == 0 { return -1, errors.New("UpdateAttributes -> no update entries provided!\n") }
+	if index == "" { return -1, errors.New("UpdateAttributes > index name is empty!\n") }
+	if len(attrs) == 0 { return -1, errors.New("UpdateAttributes > no attribute names provided!\n") }
+	if len(values) == 0 { return -1, errors.New("UpdateAttributes > no update entries provided!\n") }
 	
 	for _, v := range values {
 		// values[*][0] is docId, so +1
 		if len(v) != len(attrs) + 1 {
-			return -1, fmt.Errorf("UpdateAttributes -> update entry has wrong length: %#v\n", v)
+			return -1, fmt.Errorf("UpdateAttributes > update entry has wrong length: %#v\n", v)
 		}
 	}
 	
@@ -912,7 +920,7 @@ func (sc *SphinxClient) UpdateAttributes(index string, attrs []string, values []
 	req = writeInt32ToBytes(req, len(values))
 	for i:=0; i<len(values); i++ {
 		if docId, ok := values[i][0].(uint64); !ok {
-			return -1, fmt.Errorf("UpdateAttributes -> docId must be uint64: %#v\n", docId)
+			return -1, fmt.Errorf("UpdateAttributes > docId must be uint64: %#v\n", docId)
 		} else {
 			req = writeInt64ToBytes(req, docId)
 		}
@@ -920,7 +928,7 @@ func (sc *SphinxClient) UpdateAttributes(index string, attrs []string, values []
 			if mva {
 				vars, ok := values[i][j].([]int)
 				if !ok {
-					return -1, fmt.Errorf("UpdateAttributes -> must be []int in mva mode: %#v\n", vars)
+					return -1, fmt.Errorf("UpdateAttributes > must be []int in mva mode: %#v\n", vars)
 				}
 				req = writeInt32ToBytes(req, len(vars))
 				for _, v := range vars {
@@ -929,7 +937,7 @@ func (sc *SphinxClient) UpdateAttributes(index string, attrs []string, values []
 			} else {
 				v, ok := values[i][j].(int)
 				if !ok {
-					return -1, fmt.Errorf("UpdateAttributes -> must be int if not in mva mode: %#v\n", values[i][j])
+					return -1, fmt.Errorf("UpdateAttributes > must be int if not in mva mode: %#v\n", values[i][j])
 				}
 				req = writeInt32ToBytes(req, v)
 			}
@@ -1041,7 +1049,7 @@ func (sc *SphinxClient) FlushAttributes()(iFlushTag int, err error){
 	}
 	
 	if len(res) != 4 {
-		return -1, errors.New("FlushAttributes -> unexpected response length!\n")
+		return -1, errors.New("FlushAttributes > unexpected response length!\n")
 	}
 	
 	iFlushTag = int(binary.BigEndian.Uint32(res[0:4]))
@@ -1088,7 +1096,7 @@ func (sc *SphinxClient) connect() (conn net.Conn, err error) {
 	
 	version := binary.BigEndian.Uint32(header)
 	if version < 1 {
-		return nil, fmt.Errorf("connect -> expected searchd protocol version 1+, got version %d\n", version)
+		return nil, fmt.Errorf("connect > expected searchd protocol version 1+, got version %d\n", version)
 	}
 
 	// send my version
@@ -1103,7 +1111,7 @@ func (sc *SphinxClient) connect() (conn net.Conn, err error) {
 
 func (sc *SphinxClient) Open() (err error) {
 	if sc.conn != nil {
-		return errors.New("Open -> already connected!\n")
+		return errors.New("Open > already connected!\n")
 	}
 
 	if sc.conn, err = sc.connect();	err != nil {
@@ -1126,7 +1134,7 @@ func (sc *SphinxClient) Open() (err error) {
 
 func (sc *SphinxClient) Close() error {
 	if sc.conn == nil {
-		return errors.New("Close -> not connected!\n")
+		return errors.New("Close > not connected!\n")
 	}
 
 	if err := sc.conn.Close(); err != nil {
@@ -1141,7 +1149,7 @@ func (sc *SphinxClient) doRequest(command int, version int, req []byte) (res []b
 	defer func() {
 		if x := recover(); x != nil {
 			res = nil
-			err = fmt.Errorf("doRequest panic -> %#v\n", x)
+			err = fmt.Errorf("doRequest panic > %#v\n", x)
 		}
 	}()
 
@@ -1164,20 +1172,20 @@ func (sc *SphinxClient) doRequest(command int, version int, req []byte) (res []b
 	header := make([]byte, 8)
 	if i, err := io.ReadFull(conn, header); err != nil {
 		sc.connerror = true
-		return nil, fmt.Errorf("doRequest -> just read %d bytes into header!\n", i)
+		return nil, fmt.Errorf("doRequest > just read %d bytes into header!\n", i)
 	}
 	
 	status := binary.BigEndian.Uint16(header[0:2])	
 	ver := binary.BigEndian.Uint16(header[2:4])
 	size := binary.BigEndian.Uint32(header[4:8])
 	if size <= 0 || size > 10*1024*1024 {
-		return nil, fmt.Errorf("doRequest -> invalid response packet size (len=%d).\n", size)
+		return nil, fmt.Errorf("doRequest > invalid response packet size (len=%d).\n", size)
 	}
 	
 	res = make([]byte, size)
 	if i, err := io.ReadFull(conn, res); err != nil {
 		sc.connerror = true
-		return nil, fmt.Errorf("doRequest -> just read %d bytes into res (size=%d).\n", i, size)
+		return nil, fmt.Errorf("doRequest > just read %d bytes into res (size=%d).\n", i, size)
 	}
 	
 	switch status {
@@ -1191,7 +1199,7 @@ func (sc *SphinxClient) doRequest(command int, version int, req []byte) (res []b
 		wlen := binary.BigEndian.Uint32(res[0:4])
 		return nil, errors.New(string(res[4:wlen]))
 	default:
-		return nil, fmt.Errorf("doRequest -> unknown status code (status=%d), ver: %d\n", status, ver)
+		return nil, fmt.Errorf("doRequest > unknown status code (status=%d), ver: %d\n", status, ver)
 	}
 
 	return res, nil
