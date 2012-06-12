@@ -8,14 +8,22 @@ Installation
 
 `go get github.com/yunge/gosphinx`
 
+
 Testing
 -------
 
-import "documents.sql" to "test" database in mysql, start sphinx searchd with "sphinx.conf".
+Import "documents.sql" to "test" database in mysql;
 
-Then "cd" to gosphinx,
+Change the mysql password in sphinx.conf;
+
+Index the test data, `indexer -c /gosphinx_path/sphinx.conf --all --rotate`;
+
+Start sphinx searchd with "sphinx.conf", `searchd -c /gosphinx_path/sphinx.conf`;
+
+Then "cd" to gosphinx:
 
 `go test .`
+
 
 Differs from other languages' lib
 -------------------------------
