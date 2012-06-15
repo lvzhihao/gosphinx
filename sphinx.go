@@ -11,6 +11,23 @@ import (
 	"time"
 )
 
+// All these variables will be used in NewSphinxClient() as default values.
+// You can change them, so that you do not need to call Set***() every time.
+var(
+	Host	= "localhost"
+	Port  = 9312
+	Socket = ""
+	Limit = 20
+	Mode = SPH_MATCH_EXTENDED // "When you use one of the legacy modes, Sphinx internally converts the query to the appropriate new syntax and chooses the appropriate ranker."
+	Sort = SPH_SORT_RELEVANCE
+	GroupFunc = SPH_GROUPBY_DAY
+	GroupSort = "@group desc"
+	MaxMatches = 1000
+	Timeout = 1000
+	Ranker = SPH_RANK_PROXIMITY_BM25
+	SelectStr = "*"
+)
+
 /* searchd command versions */
 const(
 	VER_MAJOR_PROTO			= 0x1
@@ -35,7 +52,7 @@ const (
 
 /* ranking modes (extended2 only) */
 const(
-	SPH_RANK_PROXIMITY_BM25 = iota //default mode, phrase proximity major factor and BM25 minor one
+	SPH_RANK_PROXIMITY_BM25 = iota // Default mode, phrase proximity major factor and BM25 minor one
 	SPH_RANK_BM25
 	SPH_RANK_NONE
 	SPH_RANK_WORDCOUNT
@@ -53,7 +70,7 @@ const(
 	SPH_SORT_ATTR_ASC
 	SPH_SORT_TIME_SEGMENTS
 	SPH_SORT_EXTENDED
-	SPH_SORT_EXPR
+	SPH_SORT_EXPR	// Deprecated, never use it.
 )
 
 /* grouping functions */
@@ -105,12 +122,6 @@ const(
 	SPH_FILTER_VALUES = iota
 	SPH_FILTER_RANGE
 	SPH_FILTER_FLOATRANGE
-)
-
-var(
-	Host	= "localhost"
-	Port  = 9312
-	Socket = ""
 )
 
 type filter struct {
@@ -208,15 +219,15 @@ func NewSphinxClient() (sc *SphinxClient) {
 		sc.port = Port
 	}
 
-	sc.limit = 20
-	sc.mode = SPH_MATCH_EXTENDED //When you use one of the legacy modes, Sphinx internally converts the query to the appropriate new syntax and chooses the appropriate ranker.
-	sc.sort = SPH_SORT_RELEVANCE
-	sc.groupFunc = SPH_GROUPBY_DAY
-	sc.groupSort = "@group desc"
-	sc.maxMatches = 1000
-	sc.timeout = 1000
-	sc.ranker = SPH_RANK_PROXIMITY_BM25
-	sc.selectStr = "*"
+	sc.limit = Limit
+	sc.mode = Mode
+	sc.sort = Sort
+	sc.groupFunc = GroupFunc
+	sc.groupSort = GroupSort
+	sc.maxMatches = MaxMatches
+	sc.timeout = Timeout
+	sc.ranker = Ranker
+	sc.selectStr = SelectStr
 
 	return
 }
