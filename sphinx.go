@@ -245,13 +245,13 @@ func (sc *SphinxClient) SetServer(host string, port int) error {
 	// if host == "" , then just use the SphinxHost
 	if host != "" {
 		sc.host = host
-	}
-	
-	if host[:1] == "/" {
-		sc.socket = host
-	}
-	if host[:7] == "unix://" {
-		sc.socket = host[7:]
+		
+		if host[:1] == "/" {
+			sc.socket = host
+		}
+		if host[:7] == "unix://" {
+			sc.socket = host[7:]
+		}
 	}
 	
 	if port <= 0 {
