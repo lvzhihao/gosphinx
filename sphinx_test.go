@@ -43,12 +43,8 @@ func TestQuery(t *testing.T) {
 		t.Fatalf("Query -> %s\n", err)
 	}
 	
-	if res.Total != 3 {
-		t.Fatalf("Query -> res.Total: %d\n", res.Total)
-	}
-	
-	if res.TotalFound != 3 {
-		t.Fatalf("Query -> res.TotalFound: %d\n", res.TotalFound)
+	if res.Total != 3 || res.TotalFound != 3 {
+		t.Fatalf("Query -> res.Total: %d\tres.TotalFound: %d\n", res.Total, res.TotalFound)
 	}
 	
 	if sc.GetLastWarning() != "" {
@@ -74,6 +70,29 @@ func TestAddQueryAndRunQueries(t *testing.T){
 		fmt.Printf("%dth result: %#v\n", i, res)
 	}
 	*/
+}
+
+// If you do not use xml data source, just comment this func.
+func TestQueryXml(t *testing.T) {
+	fmt.Println("Running sphinx Query() xml test...")
+	
+	// Test word "understand" in index "xml"
+	res, err := sc.Query("understand", "xml", "test xml Query()")
+	if err != nil {
+		t.Fatalf("Query xml -> %s\n", err)
+	}
+	
+	if res.Total != 1 || res.TotalFound != 1 {
+		t.Fatalf("Query xml -> res.Total: %d\tres.TotalFound: %d\n", res.Total, res.TotalFound)
+	}
+	
+	if res.Matches[0].DocId != 1235 {
+		t.Fatalf("Query xml -> res.Matches: %v\n", res.Matches)
+	}
+
+	if sc.GetLastWarning() != "" {
+		fmt.Printf("Query xml warning: %s\n", sc.GetLastWarning())
+	}
 }
 
 func TestBuildExcerpts(t *testing.T) {

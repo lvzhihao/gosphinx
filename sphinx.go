@@ -242,19 +242,22 @@ func (sc *SphinxClient) GetLastWarning() string {
 // For convenience, you can set gosphinx.Host, gosphinx.Port, gosphinx.Socket as default value,
 // then you don't need to call SetServer() every time.
 func (sc *SphinxClient) SetServer(host string, port int) error {
-	// if host == "" , then just use the SphinxHost
+	var isSocketMode bool	
+
 	if host != "" {
 		sc.host = host
 		
 		if host[:1] == "/" {
 			sc.socket = host
+			isSocketMode = true
 		}
 		if host[:7] == "unix://" {
 			sc.socket = host[7:]
+			isSocketMode = true
 		}
 	}
 	
-	if port <= 0 {
+	if !isSocketMode && port <= 0 {
 		return fmt.Errorf("SetServer > port must be positive: %d\n", port)
 	}
 	sc.port = port
