@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"strings"
-	//"syscall"
 	"time"
 )
 
@@ -1077,7 +1076,7 @@ func (sc *SphinxClient) connect() (conn net.Conn, err error) {
 	if sc.conn != nil {
 		return sc.conn, nil
 	}
-
+	
 	// set connerror to false.
 	sc.connerror = false
 	
@@ -1086,40 +1085,39 @@ func (sc *SphinxClient) connect() (conn net.Conn, err error) {
 		conn, err = net.Dial("unix", sc.socket)
 		if err != nil {
 			sc.connerror = true
-			return nil, fmt.Errorf("connect() net.Dial() > %v", err)
+			return nil, err
 		}
 	} else if sc.port > 0 {	
 		conn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", sc.host, sc.port))
 		if err != nil {
 			sc.connerror = true
-			return nil, fmt.Errorf("connect() net.Dial() > %v", err)
+			return nil, err
 		}
 	}
 	
 	deadTime := time.Now().Add(time.Duration(sc.timeout) * time.Millisecond)
 	if err = conn.SetDeadline(deadTime); err != nil {
 		sc.connerror = true
-		return nil, fmt.Errorf("connect() conn.SetDeadline() > %v", err)
+		return nil, err
 	}
-
+	
 	header := make([]byte, 4)
 	_, err = io.ReadFull(conn, header)
 	if err != nil {
 		sc.connerror = true
-		return nil, fmt.Errorf("connect() io.ReadFull() > %v", err)
+		return nil, err
 	}
 	
 	version := binary.BigEndian.Uint32(header)
 	if version < 1 {
-		return nil, fmt.Errorf("connect() > expected searchd protocol version 1+, got version %d\n", version)
+		return nil, fmt.Errorf("connect > expected searchd protocol version 1+, got version %d\n", version)
 	}
 
 	// send my version
-	var i int
-	i, err = conn.Write(writeInt32ToBytes([]byte{}, VER_MAJOR_PROTO))
+	_, err = conn.Write(writeInt32ToBytes([]byte{}, VER_MAJOR_PROTO))
 	if err != nil {
 		sc.connerror = true
-		return nil, fmt.Errorf("connect() conn.Write() > %d bytes, %v", i, err)
+		return nil, err
 	}
 
 	return conn, nil
@@ -1127,11 +1125,11 @@ func (sc *SphinxClient) connect() (conn net.Conn, err error) {
 
 func (sc *SphinxClient) Open() (err error) {
 	if sc.conn != nil {
-		return errors.New("gosphinx Open() > already connected!")
+		return errors.New("Open > already connected!\n")
 	}
 
 	if sc.conn, err = sc.connect();	err != nil {
-		return fmt.Errorf("gosphinx Open() > %v", err)
+		return err
 	}
 
 	var req []byte
@@ -1139,19 +1137,10 @@ func (sc *SphinxClient) Open() (err error) {
 	req = writeInt16ToBytes(req, 0)	// command version
 	req = writeInt32ToBytes(req, 4) // body length
 	req = writeInt32ToBytes(req, 1) // body
-	
-	var n int
-	n, err = sc.conn.Write(req)
+	_, err = sc.conn.Write(req)
 	if err != nil {
-		/*
-		if opErr, ok := err.(*net.OpError); ok {
-			if opErr.Err == syscall.EPIPE {
-				println("It's broken pipe error")
-			}
-		}
-		*/
 		sc.connerror = true
-		return fmt.Errorf("gosphinx Open() sc.conn.Write() > %d bytes, %v", n, err)
+		return err
 	}
 
 	return nil
