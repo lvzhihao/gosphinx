@@ -1,30 +1,61 @@
 package gosphinx
 
 import (
-	"testing";
 	"fmt"
+	"testing"
 )
 
 var (
 	sc *SphinxClient
-	host = "/var/run/searchd.sock"
-	//host = "localhost"
+	//host = "/var/run/searchd.sock"
+	host = "0.0.0.0"
 	port = 9312 // If set host to unix path, then just ignore port.
 	index = "test1"
 	words = "test"
 )
 
-func TestInitSphinxClient(t *testing.T) {
+
+func TestParallelQuery(t *testing.T) {
+	fmt.Println("Running parallel Query() test...")
+	f := func(i int){
+		scParallel := NewSphinxClient()
+	    scParallel.SetServer(host, port)
+	    if err := scParallel.Open(); err != nil {
+	    	t.Fatalf("Parallel Query, Open() > %v\n", err)
+	    }
+	    defer scParallel.Close()
+		
+		res, err := scParallel.Query(words, index, "Test parallel Query()")
+		if err != nil {
+			t.Fatalf("Parallel Query %d -> %s\n", i, err)
+		}
+		
+		if res.Total != 3 || res.TotalFound != 3 {
+			t.Fatalf("Parallel Query %d -> res.Total: %d\tres.TotalFound: %d\n", i, res.Total, res.TotalFound)
+		}
+		
+		if scParallel.GetLastWarning() != "" {
+			fmt.Printf("Parallel Query %d warning: %s\n", i, scParallel.GetLastWarning())
+		}
+	}
+	
+	for i:=0;i<100;i++ {
+		if i > 0 && i%10 == 0 {
+			fmt.Printf("Already start %d goroutines...\n", i)
+		}
+		go f(i)
+	}
+}
+
+func TestInitClient(t *testing.T) {
 	fmt.Println("Init sphinx client ...")
     sc = NewSphinxClient()
     sc.SetServer(host, port)
-    sc.Open()
+    if err := sc.Open(); err != nil {
+    	t.Fatalf("Init sphinx client > %v\n", err)
+    }
     
-    sc.Close()
-}
-
-func TestStatus(t *testing.T) {
-	status, err := sc.Status()
+    status, err := sc.Status()
 	if err != nil {
 		t.Fatalf("Error: %s\n", err)
 		return
@@ -35,9 +66,10 @@ func TestStatus(t *testing.T) {
 	}
 }
 
+
 func TestQuery(t *testing.T) {
 	fmt.Println("Running sphinx Query() test...")
-	
+    
 	res, err := sc.Query(words, index, "test Query()")
 	if err != nil {
 		t.Fatalf("Query -> %s\n", err)
@@ -64,12 +96,11 @@ func TestAddQueryAndRunQueries(t *testing.T){
 	// TestQuery already add one.
 	if len(results) != 2 {
 		t.Fatalf("RunQueries -> get %d results.\n", len(results))
+		
+		for i, res := range results {
+			fmt.Printf("%dth result: %#v\n", i, res)
+		}
 	}
-	/*
-	for i, res := range results {
-		fmt.Printf("%dth result: %#v\n", i, res)
-	}
-	*/
 }
 
 // If you do not use xml data source, just comment this func.
@@ -174,11 +205,10 @@ func TestBuildKeywords(t *testing.T) {
 	
 	if len(keywords) != 4 {
 		t.Fatalf("BuildKeywords -> just get %d keywords! actually 4 keywords.\n", len(keywords))
+		
+		for i, kw := range keywords {
+			fmt.Printf("Keywords %d : %#v\n", i, kw)
+		}
 	}
-	/*
-	for i, kw := range keywords {
-		fmt.Printf("Keywords %d : %#v\n", i, kw)
-	}
-	*/
 }
 
