@@ -1,7 +1,7 @@
 About
 -----
 
-A sphinx client package for the Go programming language.
+The sphinx(full text search server) client package for the Go programming language.
 
 Installation
 ------------
