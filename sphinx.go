@@ -761,7 +761,7 @@ func (sc *SphinxClient) RunQueries() (results []SphinxResult, err error) {
 
 		msecs := binary.BigEndian.Uint32(response[p : p+4])
 		p += 4
-		result.Time = float32(msecs / 1000.0)
+		result.Time = float32(msecs) / 1000.0
 
 		nwords := int(binary.BigEndian.Uint32(response[p : p+4]))
 		p += 4
