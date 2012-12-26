@@ -8,36 +8,35 @@ import (
 	"io"
 	"net"
 	"strings"
-	//"syscall"
 	"time"
 )
 
 // All these variables will be used in NewSphinxClient() as default values.
 // You can change them, so that you do not need to call Set***() every time.
-var(
-	Host	= "localhost"
-	Port  = 9312
-	Socket = ""
-	Limit = 20
-	Mode = SPH_MATCH_EXTENDED // "When you use one of the legacy modes, Sphinx internally converts the query to the appropriate new syntax and chooses the appropriate ranker."
-	Sort = SPH_SORT_RELEVANCE
-	GroupFunc = SPH_GROUPBY_DAY
-	GroupSort = "@group desc"
+var (
+	Host       = "localhost"
+	Port       = 9312
+	Socket     = ""
+	Limit      = 20
+	Mode       = SPH_MATCH_EXTENDED // "When you use one of the legacy modes, Sphinx internally converts the query to the appropriate new syntax and chooses the appropriate ranker."
+	Sort       = SPH_SORT_RELEVANCE
+	GroupFunc  = SPH_GROUPBY_DAY
+	GroupSort  = "@group desc"
 	MaxMatches = 1000
-	Timeout = 1000
-	Ranker = SPH_RANK_PROXIMITY_BM25
-	SelectStr = "*"
+	Timeout    = 1000
+	Ranker     = SPH_RANK_PROXIMITY_BM25
+	SelectStr  = "*"
 )
 
 /* searchd command versions */
-const(
-	VER_MAJOR_PROTO			= 0x1
-	VER_COMMAND_SEARCH		= 0x119
-	VER_COMMAND_EXCERPT		= 0x103	// Latest version is 104. Change it to 104 if you use the Sphinx2.0.3 or higher version.
-	VER_COMMAND_UPDATE		= 0x102
-	VER_COMMAND_KEYWORDS	= 0x100
-	VER_COMMAND_STATUS		= 0x100
-	VER_COMMAND_FLUSHATTRS	= 0x100
+const (
+	VER_MAJOR_PROTO        = 0x1
+	VER_COMMAND_SEARCH     = 0x119
+	VER_COMMAND_EXCERPT    = 0x103 // Latest version is 104. Change it to 104 if you use the Sphinx2.0.3 or higher version.
+	VER_COMMAND_UPDATE     = 0x102
+	VER_COMMAND_KEYWORDS   = 0x100
+	VER_COMMAND_STATUS     = 0x100
+	VER_COMMAND_FLUSHATTRS = 0x100
 )
 
 /* matching modes */
@@ -52,7 +51,7 @@ const (
 )
 
 /* ranking modes (extended2 only) */
-const(
+const (
 	SPH_RANK_PROXIMITY_BM25 = iota // Default mode, phrase proximity major factor and BM25 minor one
 	SPH_RANK_BM25
 	SPH_RANK_NONE
@@ -65,18 +64,18 @@ const(
 )
 
 /* sorting modes */
-const(
+const (
 	SPH_SORT_RELEVANCE = iota
 	SPH_SORT_ATTR_DESC
 	SPH_SORT_ATTR_ASC
 	SPH_SORT_TIME_SEGMENTS
 	SPH_SORT_EXTENDED
-	SPH_SORT_EXPR	// Deprecated, never use it.
+	SPH_SORT_EXPR // Deprecated, never use it.
 )
 
 /* grouping functions */
-const(
-	SPH_GROUPBY_DAY   = iota
+const (
+	SPH_GROUPBY_DAY = iota
 	SPH_GROUPBY_WEEK
 	SPH_GROUPBY_MONTH
 	SPH_GROUPBY_YEAR
@@ -85,7 +84,7 @@ const(
 )
 
 /* searchd reply status codes */
-const(
+const (
 	SEARCHD_OK = iota
 	SEARCHD_ERROR
 	SEARCHD_RETRY
@@ -93,8 +92,8 @@ const(
 )
 
 /* attribute types */
-const(
-	SPH_ATTR_NONE		= iota
+const (
+	SPH_ATTR_NONE = iota
 	SPH_ATTR_INTEGER
 	SPH_ATTR_TIMESTAMP
 	SPH_ATTR_ORDINAL
@@ -102,12 +101,12 @@ const(
 	SPH_ATTR_FLOAT
 	SPH_ATTR_BIGINT
 	SPH_ATTR_STRING
-	SPH_ATTR_MULTI		= 0x40000001
-	SPH_ATTR_MULTI64	= 0x40000002
+	SPH_ATTR_MULTI   = 0x40000001
+	SPH_ATTR_MULTI64 = 0x40000002
 )
 
 /* searchd commands */
-const(
+const (
 	SEARCHD_COMMAND_SEARCH = iota
 	SEARCHD_COMMAND_EXCERPT
 	SEARCHD_COMMAND_UPDATE
@@ -119,7 +118,7 @@ const(
 )
 
 /* filter types */
-const(
+const (
 	SPH_FILTER_VALUES = iota
 	SPH_FILTER_RANGE
 	SPH_FILTER_FLOATRANGE
@@ -137,9 +136,9 @@ type filter struct {
 }
 
 type override struct {
-	attrName   string
-	attrType  int
-	values map[uint64]interface{}
+	attrName string
+	attrType int
+	values   map[uint64]interface{}
 }
 
 type SphinxMatch struct {
@@ -170,10 +169,10 @@ type SphinxResult struct {
 }
 
 type SphinxClient struct {
-	host string
-	port int
+	host   string
+	port   int
 	socket string // Unix socket
-	conn net.Conn
+	conn   net.Conn
 
 	offset        int    // how many records to seek from result-set start
 	limit         int    // how many records to return from result-set starting at offset (default is 20)
@@ -199,16 +198,16 @@ type SphinxClient struct {
 
 	warning   string
 	connerror bool // connection error vs remote error flag
-	timeout   int // millisecond, not nanosecond.
+	timeout   time.Duration
 
 	reqs [][]byte // requests array for multi-query
 
 	indexWeights map[string]int
-	ranker       int	//排序模式
+	ranker       int //排序模式
 	maxQueryTime int
 	fieldWeights map[string]int
 	overrides    map[string]override
-	selectStr      string //select-list (attributes or expressions, with optional aliases)
+	selectStr    string //select-list (attributes or expressions, with optional aliases)
 }
 
 func NewSphinxClient() (sc *SphinxClient) {
@@ -226,7 +225,7 @@ func NewSphinxClient() (sc *SphinxClient) {
 	sc.groupFunc = GroupFunc
 	sc.groupSort = GroupSort
 	sc.maxMatches = MaxMatches
-	sc.timeout = Timeout
+	sc.SetConnectTimeout(Timeout)
 	sc.ranker = Ranker
 	sc.selectStr = SelectStr
 
@@ -243,12 +242,12 @@ func (sc *SphinxClient) GetLastWarning() string {
 // For convenience, you can set gosphinx.Host, gosphinx.Port, gosphinx.Socket as default value,
 // then you don't need to call SetServer() every time.
 func (sc *SphinxClient) SetServer(host string, port int) error {
-	var isSocketMode bool	
+	var isSocketMode bool
 
 	if host != "" {
 		sc.host = host
-		
-		if host[:1] == "/" {
+
+		if host[0] == '/' {
 			sc.socket = host
 			isSocketMode = true
 		}
@@ -257,7 +256,7 @@ func (sc *SphinxClient) SetServer(host string, port int) error {
 			isSocketMode = true
 		}
 	}
-	
+
 	if !isSocketMode && port <= 0 {
 		return fmt.Errorf("SetServer > port must be positive: %d\n", port)
 	}
@@ -266,18 +265,25 @@ func (sc *SphinxClient) SetServer(host string, port int) error {
 }
 
 func (sc *SphinxClient) SetRetries(count, delay int) error {
-	if count < 0 { return fmt.Errorf("SetRetries > count must not be negative: %d\n", count) }
-	if delay < 0 { return fmt.Errorf("SetRetries > delay must not be negative: %d\n", delay) }
-	
+	if count < 0 {
+		return fmt.Errorf("SetRetries > count must not be negative: %d\n", count)
+	}
+	if delay < 0 {
+		return fmt.Errorf("SetRetries > delay must not be negative: %d\n", delay)
+	}
+
 	sc.retryCount = count
 	sc.retryDelay = delay
 	return nil
 }
 
+// millisecond, not nanosecond.
 func (sc *SphinxClient) SetConnectTimeout(timeout int) error {
-	if timeout < 0 { return fmt.Errorf("SetConnectTimeout > connect timeout must not be negative: %d\n", timeout) }
-	
-	sc.timeout = timeout
+	if timeout < 0 {
+		return fmt.Errorf("SetConnectTimeout > connect timeout must not be negative: %d\n", timeout)
+	}
+
+	sc.timeout = time.Duration(timeout) * time.Millisecond
 	return nil
 }
 
@@ -301,7 +307,7 @@ func (sc *SphinxClient) SetLimits(offset, limit, maxMatches, cutoff int) error {
 	if cutoff < 0 {
 		return fmt.Errorf("SetLimits > cutoff must not be negative: %d\n", cutoff)
 	}
-	
+
 	sc.offset = offset
 	sc.limit = limit
 	if maxMatches > 0 {
@@ -315,29 +321,35 @@ func (sc *SphinxClient) SetLimits(offset, limit, maxMatches, cutoff int) error {
 
 // Set maximum query time, in milliseconds, per-index, 0 means "do not limit".
 func (sc *SphinxClient) SetMaxQueryTime(maxQueryTime int) error {
-	if maxQueryTime < 0 { return fmt.Errorf("SetMaxQueryTime > maxQueryTime must not be negative: %d\n", maxQueryTime) }
-	
+	if maxQueryTime < 0 {
+		return fmt.Errorf("SetMaxQueryTime > maxQueryTime must not be negative: %d\n", maxQueryTime)
+	}
+
 	sc.maxQueryTime = maxQueryTime
 	return nil
 }
 
 func (sc *SphinxClient) SetOverride(attrName string, attrType int, values map[uint64]interface{}) error {
-	if attrName == "" { return errors.New("SetOverride > attrName is empty!\n") }
+	if attrName == "" {
+		return errors.New("SetOverride > attrName is empty!\n")
+	}
 	// Min value is 'SPH_ATTR_INTEGER = 1', not '0'.
 	if (attrType < 1 || attrType > SPH_ATTR_STRING) && attrType != SPH_ATTR_MULTI && SPH_ATTR_MULTI != SPH_ATTR_MULTI64 {
 		return fmt.Errorf("SetOverride > invalid attrType: %d\n", attrType)
 	}
-	
+
 	sc.overrides[attrName] = override{
-		attrName : attrName,
-		attrType : attrType,
-		values : values,
+		attrName: attrName,
+		attrType: attrType,
+		values:   values,
 	}
 	return nil
 }
 
 func (sc *SphinxClient) SetSelect(s string) error {
-	if s == "" { return errors.New("SetSelect > selectStr is empty!\n") }
+	if s == "" {
+		return errors.New("SetSelect > selectStr is empty!\n")
+	}
 
 	sc.selectStr = s
 	return nil
@@ -349,7 +361,7 @@ func (sc *SphinxClient) SetMatchMode(mode int) error {
 	if mode < 0 || mode > SPH_MATCH_EXTENDED2 {
 		return fmt.Errorf("SetMatchMode > unknown mode value; use one of the SPH_MATCH_xxx constants: %d\n", mode)
 	}
-	
+
 	sc.mode = mode
 	return nil
 }
@@ -359,7 +371,7 @@ func (sc *SphinxClient) SetRankingMode(ranker int) error {
 	if ranker < 0 || ranker > SPH_RANK_TOTAL {
 		return fmt.Errorf("SetRankingMode > unknown ranker value; use one of the SPH_RANK_xxx constants: %d\n", ranker)
 	}
-	
+
 	sc.ranker = ranker
 	return nil
 }
@@ -373,7 +385,7 @@ func (sc *SphinxClient) SetSortMode(mode int, sortBy string) error {
 	if (mode != SPH_SORT_RELEVANCE) && (sortBy == "") {
 		return fmt.Errorf("SetSortMode > sortby string must not be empty in selected mode: %d\n", mode)
 	}
-	
+
 	sc.sort = mode
 	sc.sortBy = sortBy
 	return nil
@@ -386,7 +398,7 @@ func (sc *SphinxClient) SetFieldWeights(weights map[string]int) error {
 			return fmt.Errorf("SetFieldWeights > weights must be positive 32-bit integers, field:%s  weight:%d\n", field, weight)
 		}
 	}
-	
+
 	sc.fieldWeights = weights
 	return nil
 }
@@ -405,7 +417,9 @@ func (sc *SphinxClient) SetIndexWeights(weights map[string]int) error {
 /***** Result set filtering settings *****/
 
 func (sc *SphinxClient) SetIDRange(min, max uint64) error {
-	if min > max {	return fmt.Errorf("SetIDRange > min > max! min:%d  max:%d\n", min, max) }
+	if min > max {
+		return fmt.Errorf("SetIDRange > min > max! min:%d  max:%d\n", min, max)
+	}
 
 	sc.minId = min
 	sc.maxId = max
@@ -413,50 +427,66 @@ func (sc *SphinxClient) SetIDRange(min, max uint64) error {
 }
 
 func (sc *SphinxClient) SetFilter(attr string, values []uint64, exclude bool) error {
-	if attr == "" { return fmt.Errorf("SetFilter > attribute name is empty!\n") }
-	if len(values) == 0 { return fmt.Errorf("SetFilter > values is empty!\n") }
-	
+	if attr == "" {
+		return fmt.Errorf("SetFilter > attribute name is empty!\n")
+	}
+	if len(values) == 0 {
+		return fmt.Errorf("SetFilter > values is empty!\n")
+	}
+
 	sc.filters = append(sc.filters, filter{
-		filterType : SPH_FILTER_VALUES,
-		attr : attr,
-		values : values,
-		exclude : exclude,
+		filterType: SPH_FILTER_VALUES,
+		attr:       attr,
+		values:     values,
+		exclude:    exclude,
 	})
 	return nil
 }
 
 func (sc *SphinxClient) SetFilterRange(attr string, umin, umax uint64, exclude bool) error {
-	if attr == "" { return fmt.Errorf("SetFilterRange > attribute name is empty!\n") }
-	if umin > umax { return fmt.Errorf("SetFilterRange > min > max! umin:%d  umax:%d\n", umin, umax) }
-	
+	if attr == "" {
+		return fmt.Errorf("SetFilterRange > attribute name is empty!\n")
+	}
+	if umin > umax {
+		return fmt.Errorf("SetFilterRange > min > max! umin:%d  umax:%d\n", umin, umax)
+	}
+
 	sc.filters = append(sc.filters, filter{
-		filterType : SPH_FILTER_RANGE,
-		attr : attr,
-		umin : umin,
-		umax : umax,
-		exclude : exclude,
+		filterType: SPH_FILTER_RANGE,
+		attr:       attr,
+		umin:       umin,
+		umax:       umax,
+		exclude:    exclude,
 	})
 	return nil
 }
 
 func (sc *SphinxClient) SetFilterFloatRange(attr string, fmin, fmax float32, exclude bool) error {
-	if attr == "" { return fmt.Errorf("SetFilterFloatRange > attribute name is empty!\n") }
-	if fmin > fmax { return fmt.Errorf("SetFilterFloatRange > min > max! fmin:%d  fmax:%d\n", fmin, fmax) }
-	
+	if attr == "" {
+		return fmt.Errorf("SetFilterFloatRange > attribute name is empty!\n")
+	}
+	if fmin > fmax {
+		return fmt.Errorf("SetFilterFloatRange > min > max! fmin:%d  fmax:%d\n", fmin, fmax)
+	}
+
 	sc.filters = append(sc.filters, filter{
-		filterType : SPH_FILTER_FLOATRANGE,
-		attr : attr,
-		fmin : fmin,
-		fmax : fmax,
-		exclude : exclude,
+		filterType: SPH_FILTER_FLOATRANGE,
+		attr:       attr,
+		fmin:       fmin,
+		fmax:       fmax,
+		exclude:    exclude,
 	})
 	return nil
 }
 
 func (sc *SphinxClient) SetGeoAnchor(latitudeAttr, longitudeAttr string, latitude, longitude float32) error {
-	if latitudeAttr == "" { return fmt.Errorf("SetGeoAnchor > latitudeAttr is empty!\n") }
-	if longitudeAttr == "" { return fmt.Errorf("SetGeoAnchor > longitudeAttr is empty!\n") }
-	
+	if latitudeAttr == "" {
+		return fmt.Errorf("SetGeoAnchor > latitudeAttr is empty!\n")
+	}
+	if longitudeAttr == "" {
+		return fmt.Errorf("SetGeoAnchor > longitudeAttr is empty!\n")
+	}
+
 	sc.latitudeAttr = latitudeAttr
 	sc.longitudeAttr = longitudeAttr
 	sc.latitude = latitude
@@ -470,22 +500,24 @@ func (sc *SphinxClient) SetGroupBy(groupBy string, groupFunc int, groupSort stri
 	if groupFunc < 0 || groupFunc > SPH_GROUPBY_ATTRPAIR {
 		return fmt.Errorf("SetGroupBy > unknown groupFunc value: '%d', use one of the available SPH_GROUPBY_xxx constants.\n", groupFunc)
 	}
-	
+
 	sc.groupBy = groupBy
 	sc.groupFunc = groupFunc
 	sc.groupSort = groupSort
 	return nil
 }
 
-func (sc *SphinxClient) SetGroupDistinct(groupDistinct string){
+func (sc *SphinxClient) SetGroupDistinct(groupDistinct string) {
 	sc.groupDistinct = groupDistinct
 }
 
 /***** Querying *****/
 
 func (sc *SphinxClient) Query(query, index, comment string) (result *SphinxResult, err error) {
-	if index == "" { index = "*" }
-	
+	if index == "" {
+		index = "*"
+	}
+
 	// reset requests array
 	sc.reqs = nil
 
@@ -499,7 +531,7 @@ func (sc *SphinxClient) Query(query, index, comment string) (result *SphinxResul
 	if result.Error != nil {
 		return nil, result.Error
 	}
-	
+
 	sc.warning = result.Warning
 	return
 }
@@ -531,7 +563,7 @@ func (sc *SphinxClient) AddQuery(query, index, comment string) (i int, err error
 	for _, f := range sc.filters {
 		req = writeLenStrToBytes(req, f.attr)
 		req = writeInt32ToBytes(req, f.filterType)
-		
+
 		switch f.filterType {
 		case SPH_FILTER_VALUES:
 			req = writeInt32ToBytes(req, len(f.values))
@@ -545,7 +577,7 @@ func (sc *SphinxClient) AddQuery(query, index, comment string) (i int, err error
 			req = writeFloat32ToBytes(req, f.fmin)
 			req = writeFloat32ToBytes(req, f.fmax)
 		}
-		
+
 		if f.exclude {
 			req = writeInt32ToBytes(req, 1)
 		} else {
@@ -628,8 +660,8 @@ func (sc *SphinxClient) RunQueries() (results []SphinxResult, err error) {
 
 	nreqs := len(sc.reqs)
 	var allReqs []byte
-	
-	allReqs = writeInt32ToBytes(allReqs, 0)	// it's a client
+
+	allReqs = writeInt32ToBytes(allReqs, 0) // it's a client
 	allReqs = writeInt32ToBytes(allReqs, nreqs)
 	for _, req := range sc.reqs {
 		allReqs = append(allReqs, req...)
@@ -739,7 +771,7 @@ func (sc *SphinxClient) RunQueries() (results []SphinxResult, err error) {
 				case SPH_ATTR_MULTI64:
 					nvals := int(binary.BigEndian.Uint32(response[p : p+4]))
 					p += 4
-					nvals = nvals/2
+					nvals = nvals / 2
 					var vals = make([]uint64, nvals)
 					for valNum := 0; valNum < nvals; valNum++ {
 						vals[valNum] = binary.BigEndian.Uint64(response[p : p+4])
@@ -765,7 +797,7 @@ func (sc *SphinxClient) RunQueries() (results []SphinxResult, err error) {
 
 		nwords := int(binary.BigEndian.Uint32(response[p : p+4]))
 		p += 4
-		
+
 		result.Words = make([]SphinxWordInfo, nwords)
 		for wordNum := 0; wordNum < nwords; wordNum++ {
 			wordLen := int(binary.BigEndian.Uint32(response[p : p+4]))
@@ -784,84 +816,122 @@ func (sc *SphinxClient) RunQueries() (results []SphinxResult, err error) {
 	return
 }
 
-func (sc *SphinxClient) ResetFilters(){
+func (sc *SphinxClient) ResetFilters() {
 	sc.filters = []filter{}
-	
+
 	/* reset GEO anchor */
-	sc.latitudeAttr = "";
-	sc.longitudeAttr = "";
-	sc.latitude = 0;
-	sc.longitude = 0;
+	sc.latitudeAttr = ""
+	sc.longitudeAttr = ""
+	sc.latitude = 0
+	sc.longitude = 0
 }
 
-func (sc *SphinxClient) ResetGroupBy(){
-	sc.groupBy = "";
-	sc.groupFunc = SPH_GROUPBY_DAY;
-	sc.groupSort = "@group desc";
-	sc.groupDistinct = "";
+func (sc *SphinxClient) ResetGroupBy() {
+	sc.groupBy = ""
+	sc.groupFunc = SPH_GROUPBY_DAY
+	sc.groupSort = "@group desc"
+	sc.groupDistinct = ""
 }
 
 /***** Additional functionality *****/
 
 // all bool values are default false.
 type ExcerptsOpts struct {
-	BeforeMatch string // default is "<b>".
-	AfterMatch string // default is "</b>".
-	ChunkSeparator string	// A string to insert between snippet chunks (passages). Default is " ... ".
-	Limit int	// Maximum snippet size, in symbols (codepoints). default is 256.
-	Around int // How much words to pick around each matching keywords block. default is 5.
-	ExactPhrase bool // Whether to highlight exact query phrase matches only instead of individual keywords.
-	SinglePassage bool // Whether to extract single best passage only.
-	UseBoundaries bool // Whether to additionaly break passages by phrase boundary characters, as configured in index settings with phrase_boundary directive.
-	WeightOrder bool // Whether to sort the extracted passages in order of relevance (decreasing weight), or in order of appearance in the document (increasing position). 
-	QueryMode bool // Whether to handle $words as a query in extended syntax, or as a bag of words (default behavior). 
-	ForceAllWords bool // Ignores the snippet length limit until it includes all the keywords.
-	LimitPassages int // Limits the maximum number of passages that can be included into the snippet. default is 0 (no limit).
-	LimitWords int // Limits the maximum number of keywords that can be included into the snippet. default is 0 (no limit).
-	StartPassageId int // Specifies the starting value of %PASSAGE_ID% macro (that gets detected and expanded in BeforeMatch, AfterMatch strings). default is 1.
-	LoadFiles bool // Whether to handle $docs as data to extract snippets from (default behavior), or to treat it as file names, and load data from specified files on the server side. 
-	LoadFilesScattered bool // It assumes "load_files" option, and works only with distributed snippets generation with remote agents. The source files for snippets could be distributed among different agents, and the main daemon will merge together all non-erroneous results. So, if one agent of the distributed index has 'file1.txt', another has 'file2.txt' and you call for the snippets with both these files, the sphinx will merge results from the agents together, so you will get the snippets from both 'file1.txt' and 'file2.txt'.
-	HtmlStripMode string // HTML stripping mode setting. Defaults to "index", allowed values are "none", "strip", "index", and "retain".
-	AllowEmpty bool // Allows empty string to be returned as highlighting result when a snippet could not be generated (no keywords match, or no passages fit the limit). By default, the beginning of original text would be returned instead of an empty string.
-	PassageBoundary string // Ensures that passages do not cross a sentence, paragraph, or zone boundary (when used with an index that has the respective indexing settings enabled). String, allowed values are "sentence", "paragraph", and "zone".
-	EmitZones bool // Emits an HTML tag with an enclosing zone name before each passage.
+	BeforeMatch        string // default is "<b>".
+	AfterMatch         string // default is "</b>".
+	ChunkSeparator     string // A string to insert between snippet chunks (passages). Default is " ... ".
+	Limit              int    // Maximum snippet size, in symbols (codepoints). default is 256.
+	Around             int    // How much words to pick around each matching keywords block. default is 5.
+	ExactPhrase        bool   // Whether to highlight exact query phrase matches only instead of individual keywords.
+	SinglePassage      bool   // Whether to extract single best passage only.
+	UseBoundaries      bool   // Whether to additionaly break passages by phrase boundary characters, as configured in index settings with phrase_boundary directive.
+	WeightOrder        bool   // Whether to sort the extracted passages in order of relevance (decreasing weight), or in order of appearance in the document (increasing position). 
+	QueryMode          bool   // Whether to handle $words as a query in extended syntax, or as a bag of words (default behavior). 
+	ForceAllWords      bool   // Ignores the snippet length limit until it includes all the keywords.
+	LimitPassages      int    // Limits the maximum number of passages that can be included into the snippet. default is 0 (no limit).
+	LimitWords         int    // Limits the maximum number of keywords that can be included into the snippet. default is 0 (no limit).
+	StartPassageId     int    // Specifies the starting value of %PASSAGE_ID% macro (that gets detected and expanded in BeforeMatch, AfterMatch strings). default is 1.
+	LoadFiles          bool   // Whether to handle $docs as data to extract snippets from (default behavior), or to treat it as file names, and load data from specified files on the server side. 
+	LoadFilesScattered bool   // It assumes "load_files" option, and works only with distributed snippets generation with remote agents. The source files for snippets could be distributed among different agents, and the main daemon will merge together all non-erroneous results. So, if one agent of the distributed index has 'file1.txt', another has 'file2.txt' and you call for the snippets with both these files, the sphinx will merge results from the agents together, so you will get the snippets from both 'file1.txt' and 'file2.txt'.
+	HtmlStripMode      string // HTML stripping mode setting. Defaults to "index", allowed values are "none", "strip", "index", and "retain".
+	AllowEmpty         bool   // Allows empty string to be returned as highlighting result when a snippet could not be generated (no keywords match, or no passages fit the limit). By default, the beginning of original text would be returned instead of an empty string.
+	PassageBoundary    string // Ensures that passages do not cross a sentence, paragraph, or zone boundary (when used with an index that has the respective indexing settings enabled). String, allowed values are "sentence", "paragraph", and "zone".
+	EmitZones          bool   // Emits an HTML tag with an enclosing zone name before each passage.
 }
 
 func (sc *SphinxClient) BuildExcerpts(docs []string, index, words string, opts ExcerptsOpts) (resDocs []string, err error) {
-	if len(docs) == 0 { return nil, errors.New("BuildExcerpts > Have no documents to process!\n") }
-	if index == "" { return nil, errors.New("BuildExcerpts > index name is empty!\n") }
-	if words == "" { return nil, errors.New("BuildExcerpts > Have no words to highlight!\n") }
+	if len(docs) == 0 {
+		return nil, errors.New("BuildExcerpts > Have no documents to process!\n")
+	}
+	if index == "" {
+		return nil, errors.New("BuildExcerpts > index name is empty!\n")
+	}
+	if words == "" {
+		return nil, errors.New("BuildExcerpts > Have no words to highlight!\n")
+	}
 	if opts.PassageBoundary != "" && opts.PassageBoundary != "sentence" && opts.PassageBoundary != "paragraph" && opts.PassageBoundary != "zone" {
 		return nil, fmt.Errorf("BuildExcerpts > PassageBoundary allowed values are 'sentence', 'paragraph', and 'zone', now is: %s\n", opts.PassageBoundary)
 	}
-	
+
 	// Default values, all bool values are default false.
-	if opts.BeforeMatch == "" { opts.BeforeMatch = "<b>" }
-	if opts.AfterMatch == "" { opts.AfterMatch = "</b>" }
-	if opts.ChunkSeparator == "" { opts.ChunkSeparator = "..." }
-	if opts.HtmlStripMode == "" { opts.HtmlStripMode = "index" }
-	if opts.Limit == 0 { opts.Limit = 256 }
-	if opts.Around == 0 { opts.Around = 5 }
-	if opts.StartPassageId == 0 { opts.StartPassageId = 1 }
+	if opts.BeforeMatch == "" {
+		opts.BeforeMatch = "<b>"
+	}
+	if opts.AfterMatch == "" {
+		opts.AfterMatch = "</b>"
+	}
+	if opts.ChunkSeparator == "" {
+		opts.ChunkSeparator = "..."
+	}
+	if opts.HtmlStripMode == "" {
+		opts.HtmlStripMode = "index"
+	}
+	if opts.Limit == 0 {
+		opts.Limit = 256
+	}
+	if opts.Around == 0 {
+		opts.Around = 5
+	}
+	if opts.StartPassageId == 0 {
+		opts.StartPassageId = 1
+	}
 
 	var req []byte
 	req = writeInt32ToBytes(req, 0)
-	
-	iFlags := 1		// remove_spaces
-	if opts.ExactPhrase != false {	iFlags |= 2 }
-	if opts.SinglePassage != false { iFlags |= 4 }
-	if opts.UseBoundaries != false { iFlags |= 8 }
-	if opts.WeightOrder != false { iFlags |= 16 }
-	if opts.QueryMode != false { iFlags |= 32 }
-	if opts.ForceAllWords != false { iFlags |= 64 }
-	if opts.LoadFiles != false { iFlags |= 128 }
-	if opts.AllowEmpty != false { iFlags |= 256 }
-	if opts.EmitZones != false { iFlags |= 256 }
+
+	iFlags := 1 // remove_spaces
+	if opts.ExactPhrase != false {
+		iFlags |= 2
+	}
+	if opts.SinglePassage != false {
+		iFlags |= 4
+	}
+	if opts.UseBoundaries != false {
+		iFlags |= 8
+	}
+	if opts.WeightOrder != false {
+		iFlags |= 16
+	}
+	if opts.QueryMode != false {
+		iFlags |= 32
+	}
+	if opts.ForceAllWords != false {
+		iFlags |= 64
+	}
+	if opts.LoadFiles != false {
+		iFlags |= 128
+	}
+	if opts.AllowEmpty != false {
+		iFlags |= 256
+	}
+	if opts.EmitZones != false {
+		iFlags |= 256
+	}
 	req = writeInt32ToBytes(req, iFlags)
-	
+
 	req = writeLenStrToBytes(req, index)
 	req = writeLenStrToBytes(req, words)
-	
+
 	req = writeLenStrToBytes(req, opts.BeforeMatch)
 	req = writeLenStrToBytes(req, opts.AfterMatch)
 	req = writeLenStrToBytes(req, opts.ChunkSeparator)
@@ -872,17 +942,17 @@ func (sc *SphinxClient) BuildExcerpts(docs []string, index, words string, opts E
 	req = writeInt32ToBytes(req, opts.StartPassageId)
 	req = writeLenStrToBytes(req, opts.HtmlStripMode)
 	req = writeLenStrToBytes(req, opts.PassageBoundary)
-	
+
 	req = writeInt32ToBytes(req, len(docs))
 	for _, doc := range docs {
 		req = writeLenStrToBytes(req, doc)
 	}
-	
+
 	response, err := sc.doRequest(SEARCHD_COMMAND_EXCERPT, VER_COMMAND_EXCERPT, req)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	resDocs = make([]string, len(docs))
 	p := 0
 	for i := 0; i < len(docs); i++ {
@@ -891,7 +961,7 @@ func (sc *SphinxClient) BuildExcerpts(docs []string, index, words string, opts E
 		resDocs[i] = string(response[p : p+length])
 		p += length
 	}
-	
+
 	return resDocs, nil
 }
 
@@ -902,27 +972,33 @@ func (sc *SphinxClient) BuildExcerpts(docs []string, index, words string, opts E
  'ndocs'	-1 on failure, amount of actually found and updated documents (might be 0) on success
 */
 func (sc *SphinxClient) UpdateAttributes(index string, attrs []string, values [][]interface{}) (ndocs int, err error) {
-	if index == "" { return -1, errors.New("UpdateAttributes > index name is empty!\n") }
-	if len(attrs) == 0 { return -1, errors.New("UpdateAttributes > no attribute names provided!\n") }
-	if len(values) == 0 { return -1, errors.New("UpdateAttributes > no update entries provided!\n") }
-	
+	if index == "" {
+		return -1, errors.New("UpdateAttributes > index name is empty!\n")
+	}
+	if len(attrs) == 0 {
+		return -1, errors.New("UpdateAttributes > no attribute names provided!\n")
+	}
+	if len(values) == 0 {
+		return -1, errors.New("UpdateAttributes > no update entries provided!\n")
+	}
+
 	for _, v := range values {
 		// values[*][0] is docId, so +1
-		if len(v) != len(attrs) + 1 {
+		if len(v) != len(attrs)+1 {
 			return -1, fmt.Errorf("UpdateAttributes > update entry has wrong length: %#v\n", v)
 		}
 	}
-	
+
 	var mva bool
 	if _, ok := values[0][1].([]int); ok {
 		mva = true
 	}
-	
+
 	var req []byte
 	req = writeLenStrToBytes(req, index)
-	
+
 	req = writeInt32ToBytes(req, len(attrs))
-	
+
 	for _, attr := range attrs {
 		req = writeLenStrToBytes(req, attr)
 		if mva {
@@ -931,15 +1007,15 @@ func (sc *SphinxClient) UpdateAttributes(index string, attrs []string, values []
 			req = writeInt32ToBytes(req, 0)
 		}
 	}
-	
+
 	req = writeInt32ToBytes(req, len(values))
-	for i:=0; i<len(values); i++ {
+	for i := 0; i < len(values); i++ {
 		if docId, ok := values[i][0].(uint64); !ok {
 			return -1, fmt.Errorf("UpdateAttributes > docId must be uint64: %#v\n", docId)
 		} else {
 			req = writeInt64ToBytes(req, docId)
 		}
-		for j:=1; j<len(values[i]); j++ {
+		for j := 1; j < len(values[i]); j++ {
 			if mva {
 				vars, ok := values[i][j].([]int)
 				if !ok {
@@ -958,25 +1034,26 @@ func (sc *SphinxClient) UpdateAttributes(index string, attrs []string, values []
 			}
 		}
 	}
-	
+
 	response, err := sc.doRequest(SEARCHD_COMMAND_UPDATE, VER_COMMAND_UPDATE, req)
 	if err != nil {
 		return -1, err
 	}
-	
+
 	ndocs = int(binary.BigEndian.Uint32(response[0:4]))
 	return
 }
 
 type Keyword struct {
-	Tokenized string "Tokenized"
+	Tokenized  string "Tokenized"
 	Normalized string "Normalized"
-	Docs int
-	Hits int
+	Docs       int
+	Hits       int
 }
+
 // Connect to searchd server, and generate keyword list for a given query.
 // Returns null on failure, an array of Maps with misc per-keyword info on success.
-func (sc *SphinxClient) BuildKeywords(query,index string, hits bool) (keywords []Keyword, err error) {
+func (sc *SphinxClient) BuildKeywords(query, index string, hits bool) (keywords []Keyword, err error) {
 	var req []byte
 	req = writeLenStrToBytes(req, query)
 	req = writeLenStrToBytes(req, index)
@@ -985,30 +1062,30 @@ func (sc *SphinxClient) BuildKeywords(query,index string, hits bool) (keywords [
 	} else {
 		req = writeInt32ToBytes(req, 0)
 	}
-	
+
 	response, err := sc.doRequest(SEARCHD_COMMAND_KEYWORDS, VER_COMMAND_KEYWORDS, req)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	p := 0
 	nwords := int(binary.BigEndian.Uint32(response[p : p+4]))
 	p += 4
-	
+
 	keywords = make([]Keyword, nwords)
-	
-	for i:=0; i < nwords; i++ {
+
+	for i := 0; i < nwords; i++ {
 		var k Keyword
 		length := int(binary.BigEndian.Uint32(response[p : p+4]))
 		p += 4
 		k.Tokenized = string(response[p : p+length])
 		p += length
-		
+
 		length = int(binary.BigEndian.Uint32(response[p : p+4]))
 		p += 4
 		k.Normalized = string(response[p : p+length])
 		p += length
-		
+
 		if hits {
 			k.Docs = int(binary.BigEndian.Uint32(response[p : p+4]))
 			p += 4
@@ -1017,7 +1094,7 @@ func (sc *SphinxClient) BuildKeywords(query,index string, hits bool) (keywords [
 		}
 		keywords[i] = k
 	}
-	
+
 	return
 }
 
@@ -1057,101 +1134,89 @@ func (sc *SphinxClient) Status() (response [][]string, err error) {
 	return response, nil
 }
 
-func (sc *SphinxClient) FlushAttributes()(iFlushTag int, err error){
+func (sc *SphinxClient) FlushAttributes() (iFlushTag int, err error) {
 	res, err := sc.doRequest(SEARCHD_COMMAND_FLUSHATTRS, VER_COMMAND_FLUSHATTRS, []byte{})
 	if err != nil {
 		return -1, err
 	}
-	
+
 	if len(res) != 4 {
 		return -1, errors.New("FlushAttributes > unexpected response length!\n")
 	}
-	
+
 	iFlushTag = int(binary.BigEndian.Uint32(res[0:4]))
 	return
 }
 
-/***** Persistent connections *****/
-
-func (sc *SphinxClient) connect() (conn net.Conn, err error) {
+func (sc *SphinxClient) connect() (err error) {
 	if sc.conn != nil {
-		return sc.conn, nil
+		return
 	}
 
 	// set connerror to false.
 	sc.connerror = false
-	
+
 	// Try unix socket first.
 	if sc.socket != "" {
-		conn, err = net.Dial("unix", sc.socket)
-		if err != nil {
+		if sc.conn, err = net.DialTimeout("unix", sc.socket, sc.timeout); err != nil {
 			sc.connerror = true
-			return nil, fmt.Errorf("connect() net.Dial() > %v", err)
+			//LogConnError(err)
+			return fmt.Errorf("connect() net.DialTimeout(%d ms) > %v", sc.timeout/time.Millisecond, err)
 		}
-	} else if sc.port > 0 {	
-		conn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", sc.host, sc.port))
-		if err != nil {
+	} else if sc.port > 0 {
+		if sc.conn, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", sc.host, sc.port), sc.timeout); err != nil {
 			sc.connerror = true
-			return nil, fmt.Errorf("connect() net.Dial() > %v", err)
+			//LogConnError(err)
+			return fmt.Errorf("connect() net.DialTimeout(%d ms) > %v", sc.timeout/time.Millisecond, err)
 		}
+	} else {
+		return fmt.Errorf("connect() > No valid socket or port!\n%SphinxClient: #v", sc)
 	}
-	
+
 	deadTime := time.Now().Add(time.Duration(sc.timeout) * time.Millisecond)
-	if err = conn.SetDeadline(deadTime); err != nil {
+	if err = sc.conn.SetDeadline(deadTime); err != nil {
 		sc.connerror = true
-		return nil, fmt.Errorf("connect() conn.SetDeadline() > %v", err)
+		return fmt.Errorf("connect() conn.SetDeadline() > %v", err)
 	}
 
 	header := make([]byte, 4)
-	_, err = io.ReadFull(conn, header)
-	if err != nil {
+	if _, err = io.ReadFull(sc.conn, header); err != nil {
 		sc.connerror = true
-		return nil, fmt.Errorf("connect() io.ReadFull() > %v", err)
+		return fmt.Errorf("connect() io.ReadFull() > %v", err)
 	}
-	
+
 	version := binary.BigEndian.Uint32(header)
 	if version < 1 {
-		return nil, fmt.Errorf("connect() > expected searchd protocol version 1+, got version %d\n", version)
+		return fmt.Errorf("connect() > expected searchd protocol version 1+, got version %d\n", version)
 	}
 
 	// send my version
 	var i int
-	i, err = conn.Write(writeInt32ToBytes([]byte{}, VER_MAJOR_PROTO))
+	i, err = sc.conn.Write(writeInt32ToBytes([]byte{}, VER_MAJOR_PROTO))
 	if err != nil {
 		sc.connerror = true
-		return nil, fmt.Errorf("connect() conn.Write() > %d bytes, %v", i, err)
+		return fmt.Errorf("connect() conn.Write() > %d bytes, %v", i, err)
 	}
 
-	return conn, nil
+	return
 }
 
 func (sc *SphinxClient) Open() (err error) {
-	if sc.conn != nil {
-		return errors.New("gosphinx Open() > already connected!")
-	}
-
-	if sc.conn, err = sc.connect();	err != nil {
+	if err = sc.connect(); err != nil {
 		return fmt.Errorf("gosphinx Open() > %v", err)
 	}
 
 	var req []byte
 	req = writeInt16ToBytes(req, SEARCHD_COMMAND_PERSIST)
-	req = writeInt16ToBytes(req, 0)	// command version
+	req = writeInt16ToBytes(req, 0) // command version
 	req = writeInt32ToBytes(req, 4) // body length
 	req = writeInt32ToBytes(req, 1) // body
-	
+
 	var n int
 	n, err = sc.conn.Write(req)
 	if err != nil {
-		/*
-		if opErr, ok := err.(*net.OpError); ok {
-			if opErr.Err == syscall.EPIPE {
-				println("It's broken pipe error")
-			}
-		}
-		*/
 		sc.connerror = true
-		return fmt.Errorf("gosphinx Open() sc.conn.Write() > %d bytes, %v", n, err)
+		return fmt.Errorf("Open() sc.conn.Write() > %d bytes, %v", n, err)
 	}
 
 	return nil
@@ -1165,7 +1230,7 @@ func (sc *SphinxClient) Close() error {
 	if err := sc.conn.Close(); err != nil {
 		return err
 	}
-	
+
 	sc.conn = nil
 	return nil
 }
@@ -1178,8 +1243,7 @@ func (sc *SphinxClient) doRequest(command int, version int, req []byte) (res []b
 		}
 	}()
 
-	conn, err := sc.connect()
-	if err != nil {
+	if err = sc.connect(); err != nil {
 		return nil, err
 	}
 
@@ -1188,31 +1252,31 @@ func (sc *SphinxClient) doRequest(command int, version int, req []byte) (res []b
 	cmdVerLen = writeInt16ToBytes(cmdVerLen, version)
 	cmdVerLen = writeInt32ToBytes(cmdVerLen, len(req))
 	req = append(cmdVerLen, req...)
-	_, err = conn.Write(req)
+	_, err = sc.conn.Write(req)
 	if err != nil {
 		sc.connerror = true
 		return nil, err
 	}
 
 	header := make([]byte, 8)
-	if i, err := io.ReadFull(conn, header); err != nil {
+	if i, err := io.ReadFull(sc.conn, header); err != nil {
 		sc.connerror = true
 		return nil, fmt.Errorf("doRequest > just read %d bytes into header!\n", i)
 	}
-	
-	status := binary.BigEndian.Uint16(header[0:2])	
+
+	status := binary.BigEndian.Uint16(header[0:2])
 	ver := binary.BigEndian.Uint16(header[2:4])
 	size := binary.BigEndian.Uint32(header[4:8])
 	if size <= 0 || size > 10*1024*1024 {
 		return nil, fmt.Errorf("doRequest > invalid response packet size (len=%d).\n", size)
 	}
-	
+
 	res = make([]byte, size)
-	if i, err := io.ReadFull(conn, res); err != nil {
+	if i, err := io.ReadFull(sc.conn, res); err != nil {
 		sc.connerror = true
 		return nil, fmt.Errorf("doRequest > just read %d bytes into res (size=%d).\n", i, size)
 	}
-	
+
 	switch status {
 	case SEARCHD_OK:
 		// do nothing
