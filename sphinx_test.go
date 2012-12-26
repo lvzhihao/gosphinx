@@ -8,7 +8,7 @@ import (
 var (
 	sc *SphinxClient
 	//host = "/var/run/searchd.sock"
-	host  = "0.0.0.0"
+	host  = "dbserver"
 	port  = 9312 // If set host to unix path, then just ignore port.
 	index = "test1"
 	words = "test"
@@ -41,10 +41,8 @@ func TestParallelQuery(t *testing.T) {
 		}
 	}
 
-	/*
-		There are some issues in linux, if the test failed, please try to reduce concurrent number;
-		In my windows7 64bit pc, the for loop can set to over 1000, but just can set to 100 in linux. 
-	*/
+	//There are some issues in linux, if the test failed, please try to reduce concurrent number;
+	//In my windows7 64bit pc, the for loop can set to over 1000, but just can set to 100 in linux. 
 	for i := 0; i < 50; i++ {
 		if i > 0 && i%10 == 0 {
 			fmt.Printf("Already start %d goroutines...\n", i)
@@ -74,18 +72,31 @@ func TestInitClient(t *testing.T) {
 
 func TestQuery(t *testing.T) {
 	fmt.Println("Running sphinx Query() test...")
-
+	
 	res, err := sc.Query(words, index, "test Query()")
 	if err != nil {
 		t.Fatalf("%s\n", err)
 	}
 	
-	if res.Total != 3 || res.TotalFound != 3 {
-		t.Fatalf("Query -> res.Total: %d\tres.TotalFound: %d\n", res.Total, res.TotalFound)
+	if res.Total != 4 || res.TotalFound != 4 {
+		t.Fatalf("Query > res.Total: %d\tres.TotalFound: %d\n", res.Total, res.TotalFound)
 	}
 
 	if sc.GetLastWarning() != "" {
 		fmt.Printf("Query warning: %s\n", sc.GetLastWarning())
+	}
+	
+	// Test fieldWeights
+	fieldWeights := make(map[string]int)
+    fieldWeights["title"] = 1000
+    fieldWeights["content"] = 1
+    sc.SetFieldWeights(fieldWeights)
+    res, err = sc.Query("this", index, "test Query()")
+	if err != nil {
+		t.Fatalf("%s\n", err)
+	}
+	if res.Matches[0].DocId != 5 {
+		t.Fatalf("Query(fieldweights) > First match is not 5: %v\n", res.Matches)
 	}
 }
 
@@ -95,12 +106,12 @@ func TestAddQueryAndRunQueries(t *testing.T) {
 
 	results, err := sc.RunQueries()
 	if err != nil {
-		t.Fatalf("RunQueries -> %s\n", err)
+		t.Fatalf("RunQueries > %s\n", err)
 	}
 
 	// TestQuery already add one.
 	if len(results) != 2 {
-		t.Fatalf("RunQueries -> get %d results.\n", len(results))
+		t.Fatalf("RunQueries > get %d results.\n", len(results))
 
 		for i, res := range results {
 			fmt.Printf("%dth result: %#v\n", i, res)
@@ -115,15 +126,15 @@ func TestQueryXml(t *testing.T) {
 	// Test word "understand" in index "xml"
 	res, err := sc.Query("understand", "xml", "test xml Query()")
 	if err != nil {
-		t.Fatalf("Query xml -> %s\n", err)
+		t.Fatalf("Query xml > %s\n", err)
 	}
 
 	if res.Total != 1 || res.TotalFound != 1 {
-		t.Fatalf("Query xml -> res.Total: %d\tres.TotalFound: %d\n", res.Total, res.TotalFound)
+		t.Fatalf("Query xml > res.Total: %d\tres.TotalFound: %d\n", res.Total, res.TotalFound)
 	}
 
 	if res.Matches[0].DocId != 1235 {
-		t.Fatalf("Query xml -> res.Matches: %v\n", res.Matches)
+		t.Fatalf("Query xml > res.Matches: %v\n", res.Matches)
 	}
 
 	if sc.GetLastWarning() != "" {
@@ -150,7 +161,7 @@ func TestBuildExcerpts(t *testing.T) {
 
 	res, err := sc.BuildExcerpts(docs, index, words, opts)
 	if err != nil {
-		t.Fatalf("BuildExcerpts -> %s\n", err)
+		t.Fatalf("BuildExcerpts > %s\n", err)
 	}
 
 	if res[0] != ` ...  is my first <span style='font-weight:bold;color:red'>test</span> text to be ... ` {
@@ -178,25 +189,25 @@ func TestUpdateAttributes(t *testing.T) {
 	//v3 := []interface{uint64(4), []int{4,5,6,7}}
 	ndocs, err := sc.UpdateAttributes(index, attrs, values)
 	if err != nil {
-		t.Fatalf("UpdateAttributes -> %s\n", err)
+		t.Fatalf("UpdateAttributes > %s\n", err)
 	}
 
 	if ndocs != 2 {
-		t.Fatalf("UpdateAttributes -> ndocs: %d\n", ndocs)
+		t.Fatalf("UpdateAttributes > ndocs: %d\n", ndocs)
 	}
 
-	sc.SetFilter("group_id", []uint64{3, 4}, true) // exclude 3,4, then should get doc3 and doc4.
+	sc.SetFilter("group_id", []uint64{3, 4}, true) // exclude 3,4, then should get doc3, doc4 and doc5.
 	result, err := sc.Query("", index, "")
 	if err != nil {
-		t.Fatalf("UpdateAttributes -> Query -> %#v\n", err)
+		t.Fatalf("UpdateAttributes > Query > %#v\n", err)
 	}
 
-	if result.Total != 2 {
-		t.Fatalf("UpdateAttributes -> total: %d\n", result.Total)
+	if result.Total != 3 {
+		t.Fatalf("UpdateAttributes > total: %d\n", result.Total)
 	}
 
 	if result.Matches[0].DocId != 3 || result.Matches[1].DocId != 4 {
-		t.Fatalf("UpdateAttributes -> wrong matches: %#v\n", result.Matches)
+		t.Fatalf("UpdateAttributes > wrong matches: %#v\n", result.Matches)
 	}
 }
 
@@ -204,11 +215,11 @@ func TestBuildKeywords(t *testing.T) {
 	fmt.Println("Running sphinx BuildKeywords() test...")
 	keywords, err := sc.BuildKeywords("this.is.my query", index, true)
 	if err != nil {
-		t.Fatalf("BuildKeywords -> %s\n", err)
+		t.Fatalf("BuildKeywords > %s\n", err)
 	}
 
 	if len(keywords) != 4 {
-		t.Fatalf("BuildKeywords -> just get %d keywords! actually 4 keywords.\n", len(keywords))
+		t.Fatalf("BuildKeywords > just get %d keywords! actually 4 keywords.\n", len(keywords))
 
 		for i, kw := range keywords {
 			fmt.Printf("Keywords %d : %#v\n", i, kw)

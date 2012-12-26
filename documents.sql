@@ -3,9 +3,9 @@
 -- http://www.phpmyadmin.net
 --
 -- Host: 127.0.0.1
--- Generation Time: Jan 11, 2012 at 04:05 PM
--- Server version: 5.5.14
--- PHP Version: 5.3.2
+-- Generation Time: Dec 26, 2012 at 03:10 PM
+-- Server version: 5.5.20
+-- PHP Version: 5.3.19
 
 SET SQL_MODE="NO_AUTO_VALUE_ON_ZERO";
 SET time_zone = "+00:00";
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS `documents` (
   `title` varchar(255) NOT NULL,
   `content` text NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 AUTO_INCREMENT=5 ;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 AUTO_INCREMENT=6 ;
 
 --
 -- Dumping data for table `documents`
@@ -45,7 +45,8 @@ INSERT INTO `documents` (`id`, `cate_ids`, `group_id`, `group_id2`, `date_added`
 (1, '1', 1, 5, '2012-01-10 14:50:39', 'test one', 'this is my test document number one. also checking search within phrases.'),
 (2, '1,2', 1, 6, '2012-01-10 14:50:39', 'test two', 'this is my test document number two'),
 (3, '1,2,3', 2, 7, '2012-01-10 14:50:39', 'another doc', 'this is another group'),
-(4, '1,2,3,4', 2, 8, '2012-01-10 14:50:39', 'doc number four', 'this is to test groups');
+(4, '1,2,3,4', 2, 8, '2012-01-10 14:50:39', 'doc number four', 'this is to test groups'),
+(5, '', 0, 0, '0000-00-00 00:00:00', 'this is for field weights', 'For field weights test.');
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
