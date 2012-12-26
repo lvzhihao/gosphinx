@@ -13,37 +13,27 @@ var(
 	LogFile = "/var/log/sphinx.log"
 )
 
-/***** Persistent connections *****/
 func LogConnError(err error) {
 	var s string
-	// matching rest of the codes needs typecasting, errno is
-	// wrapped on OpError
 	if e, ok := err.(*net.OpError); ok {
 		s = fmt.Sprintf("%T : %s", e.Err, e.Error())
-		// print wrapped error string e.g.
-		// "syscall.Errno : resource temporarily unavailable"
 
 		if e.Timeout() {
 			s += " TIMEOUT"
 		}
 		if e.Temporary() {
-			// True on timeout, socket interrupts or when buffer is full
-			s += " TEMPORARY"
+			s += " TEMPORARY"	// True on timeout, socket interrupts or when buffer is full
 		}
 
-		// specific granular error codes in case we're interested
 		switch e.Err {
 		case syscall.EAGAIN:
-			// timeout
-			s += " EAGAIN"
+			s += " EAGAIN"	// timeout
 		case syscall.EPIPE:
-			// broken pipe (e.g. on connection reset)
-			s += " EPIPE"
+			s += " EPIPE"	// broken pipe (e.g. on connection reset)
 		default:
-
+			// Do nothing
 		}
 	} else {
-		// print type of the error
 		s = fmt.Sprintf("%T", err)
 	
 		if err == syscall.EINVAL {
@@ -55,7 +45,7 @@ func LogConnError(err error) {
 		}
 	}
 	
-	Log(s)
+	Logf("%s\n", s)
 }
 
 
