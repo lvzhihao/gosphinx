@@ -8,7 +8,7 @@ import (
 var (
 	sc *SphinxClient
 	//host = "/var/run/searchd.sock"
-	host  = "dbserver"
+	host  = "localhost"
 	port  = 9312 // If set host to unix path, then just ignore port.
 	index = "test1"
 	words = "test"
@@ -88,10 +88,11 @@ func TestQuery(t *testing.T) {
 	
 	// Test fieldWeights
 	fieldWeights := make(map[string]int)
-    fieldWeights["title"] = 1000
-    fieldWeights["content"] = 1
-    sc.SetFieldWeights(fieldWeights)
-    res, err = sc.Query("this", index, "test Query()")
+    	fieldWeights["title"] = 1000
+    	fieldWeights["content"] = 1
+    	sc.SetFieldWeights(fieldWeights)
+
+    	res, err = sc.Query("this", index, "test Query()")
 	if err != nil {
 		t.Fatalf("%s\n", err)
 	}
