@@ -41,7 +41,7 @@ func TestParallelQuery(t *testing.T) {
 		}
 	}
 
-	//There are some issues in prefork mode, please use fork mode for "workers" setting for searchd in sphinx.conf
+	//Please use fork mode for "workers" setting of searchd in sphinx.conf, there are some concurrent issues in prefork mode now.
 	for i := 0; i < 1000; i++ {
 		if i > 0 && i%10 == 0 {
 			fmt.Printf("Already start %d goroutines...\n", i)
