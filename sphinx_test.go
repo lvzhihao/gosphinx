@@ -22,13 +22,13 @@ func TestParallelQuery(t *testing.T) {
 		if err := scParallel.Open(); err != nil {
 			t.Fatalf("Parallel %d > %v\n", i, err)
 		}
-		
+
 		res, err := scParallel.Query(words, index, "Test parallel Query()")
 		if err != nil {
 			t.Fatalf("Parallel %d > %s\n", i, err)
 		}
 
-		if res.Total != 3 || res.TotalFound != 3 {
+		if res.Total != 4 || res.TotalFound != 4 {
 			t.Fatalf("Parallel %d > res.Total: %d\tres.TotalFound: %d\n", i, res.Total, res.TotalFound)
 		}
 
@@ -41,9 +41,8 @@ func TestParallelQuery(t *testing.T) {
 		}
 	}
 
-	//There are some issues in linux, if the test failed, please try to reduce concurrent number;
-	//In my windows7 64bit pc, the for loop can set to over 1000, but just can set to 100 in linux. 
-	for i := 0; i < 50; i++ {
+	//There are some issues in prefork mode, please use fork mode for "workers" setting for searchd in sphinx.conf
+	for i := 0; i < 1000; i++ {
 		if i > 0 && i%10 == 0 {
 			fmt.Printf("Already start %d goroutines...\n", i)
 		}
@@ -72,12 +71,12 @@ func TestInitClient(t *testing.T) {
 
 func TestQuery(t *testing.T) {
 	fmt.Println("Running sphinx Query() test...")
-	
+
 	res, err := sc.Query(words, index, "test Query()")
 	if err != nil {
 		t.Fatalf("%s\n", err)
 	}
-	
+
 	if res.Total != 4 || res.TotalFound != 4 {
 		t.Fatalf("Query > res.Total: %d\tres.TotalFound: %d\n", res.Total, res.TotalFound)
 	}
@@ -85,14 +84,14 @@ func TestQuery(t *testing.T) {
 	if sc.GetLastWarning() != "" {
 		fmt.Printf("Query warning: %s\n", sc.GetLastWarning())
 	}
-	
+
 	// Test fieldWeights
 	fieldWeights := make(map[string]int)
-    	fieldWeights["title"] = 1000
-    	fieldWeights["content"] = 1
-    	sc.SetFieldWeights(fieldWeights)
+	fieldWeights["title"] = 1000
+	fieldWeights["content"] = 1
+	sc.SetFieldWeights(fieldWeights)
 
-    	res, err = sc.Query("this", index, "test Query()")
+	res, err = sc.Query("this", index, "test Query()")
 	if err != nil {
 		t.Fatalf("%s\n", err)
 	}
