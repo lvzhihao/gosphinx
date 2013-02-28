@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"strings"
 	"time"
@@ -32,7 +33,7 @@ var (
 const (
 	VER_MAJOR_PROTO        = 0x1
 	VER_COMMAND_SEARCH     = 0x119
-	VER_COMMAND_EXCERPT    = 0x103 // Latest version is 104. Change it to 104 if you use the Sphinx2.0.3 or higher version.
+	VER_COMMAND_EXCERPT    = 0x104 // Latest version is 104. Change it to 104 if you use the Sphinx2.0.3 or higher version.
 	VER_COMMAND_UPDATE     = 0x102
 	VER_COMMAND_KEYWORDS   = 0x100
 	VER_COMMAND_STATUS     = 0x100
@@ -60,6 +61,7 @@ const (
 	SPH_RANK_MATCHANY
 	SPH_RANK_FIELDMASK
 	SPH_RANK_SPH04
+	SPH_RANK_EXPR
 	SPH_RANK_TOTAL
 )
 
@@ -203,7 +205,8 @@ type SphinxClient struct {
 	reqs [][]byte // requests array for multi-query
 
 	indexWeights map[string]int
-	ranker       int //排序模式
+	ranker       int // ranking mode
+	rankexpr string // ranking expression for SPH_RANK_EXPR
 	maxQueryTime int
 	fieldWeights map[string]int
 	overrides    map[string]override
@@ -366,13 +369,13 @@ func (sc *SphinxClient) SetMatchMode(mode int) error {
 	return nil
 }
 
-func (sc *SphinxClient) SetRankingMode(ranker int) error {
-	// ranker >= SPH_RANK_TOTAL
+func (sc *SphinxClient) SetRankingMode(ranker int, rankexpr string) error {
 	if ranker < 0 || ranker > SPH_RANK_TOTAL {
 		return fmt.Errorf("SetRankingMode > unknown ranker value; use one of the SPH_RANK_xxx constants: %d\n", ranker)
 	}
 
 	sc.ranker = ranker
+	sc.rankexpr = rankexpr
 	return nil
 }
 
@@ -479,6 +482,7 @@ func (sc *SphinxClient) SetFilterFloatRange(attr string, fmin, fmax float32, exc
 	return nil
 }
 
+// The latitude and longitude are expected to be in radians. Use DegreeToRadian() to transform degree values.
 func (sc *SphinxClient) SetGeoAnchor(latitudeAttr, longitudeAttr string, latitude, longitude float32) error {
 	if latitudeAttr == "" {
 		return fmt.Errorf("SetGeoAnchor > latitudeAttr is empty!\n")
@@ -520,16 +524,22 @@ func (sc *SphinxClient) Query(query, index, comment string) (result *SphinxResul
 
 	// reset requests array
 	sc.reqs = nil
-
-	sc.AddQuery(query, index, comment)
-	results, err := sc.RunQueries()
-	if err != nil {
+	if _, err = sc.AddQuery(query, index, comment); err != nil {
 		return nil, err
 	}
-
+	
+	results, err := sc.RunQueries()
+	if err != nil {
+	fmt.Printf("req: %v\n", sc.reqs[0])
+		return nil, err
+	}
+	if len(results) == 0 {
+		return nil, fmt.Errorf("Query > Empty results!\nSphinxClient: %#v", sc)
+	}
+	
 	result = &results[0]
 	if result.Error != nil {
-		return nil, result.Error
+		return nil, fmt.Errorf("Query > Result error: %v", result.Error)
 	}
 
 	sc.warning = result.Warning
@@ -543,6 +553,9 @@ func (sc *SphinxClient) AddQuery(query, index, comment string) (i int, err error
 	req = writeInt32ToBytes(req, sc.limit)
 	req = writeInt32ToBytes(req, sc.mode)
 	req = writeInt32ToBytes(req, sc.ranker)
+	if sc.ranker == SPH_RANK_EXPR {
+			req = writeLenStrToBytes(req, sc.rankexpr)
+	}
 	req = writeInt32ToBytes(req, sc.sort)
 	req = writeLenStrToBytes(req, sc.sortBy)
 	req = writeLenStrToBytes(req, query)
@@ -559,7 +572,6 @@ func (sc *SphinxClient) AddQuery(query, index, comment string) (i int, err error
 	req = writeInt64ToBytes(req, sc.maxId)
 
 	req = writeInt32ToBytes(req, len(sc.filters))
-
 	for _, f := range sc.filters {
 		req = writeLenStrToBytes(req, f.attr)
 		req = writeInt32ToBytes(req, f.filterType)
@@ -608,17 +620,17 @@ func (sc *SphinxClient) AddQuery(query, index, comment string) (i int, err error
 	}
 
 	req = writeInt32ToBytes(req, len(sc.indexWeights))
-	for n, v := range sc.indexWeights {
-		req = writeLenStrToBytes(req, n)
-		req = writeInt32ToBytes(req, v)
+	for ind, wei := range sc.indexWeights {
+		req = writeLenStrToBytes(req, ind)
+		req = writeInt32ToBytes(req, wei)
 	}
 
 	req = writeInt32ToBytes(req, sc.maxQueryTime)
 
 	req = writeInt32ToBytes(req, len(sc.fieldWeights))
-	for n, v := range sc.fieldWeights {
-		req = writeLenStrToBytes(req, n)
-		req = writeInt32ToBytes(req, v)
+	for fie, wei := range sc.fieldWeights {
+		req = writeLenStrToBytes(req, fie)
+		req = writeInt32ToBytes(req, wei)
 	}
 
 	req = writeLenStrToBytes(req, comment)
@@ -687,8 +699,7 @@ func (sc *SphinxClient) RunQueries() (results []SphinxResult, err error) {
 			if result.Status == SEARCHD_WARNING {
 				result.Warning = string(message)
 			} else {
-				err = errors.New(string(message))
-				result.Error = err
+				result.Error = errors.New(string(message))
 				continue
 			}
 		}
@@ -747,7 +758,7 @@ func (sc *SphinxClient) RunQueries() (results []SphinxResult, err error) {
 					var f float32
 					buf := bytes.NewBuffer(response[p : p+4])
 					if err := binary.Read(buf, binary.BigEndian, &f); err != nil {
-						return nil, err
+						return nil, fmt.Errorf("binary.Read error: %v", err)
 					}
 					match.AttrValues[attrNum] = f
 					p += 4
@@ -822,8 +833,8 @@ func (sc *SphinxClient) ResetFilters() {
 	/* reset GEO anchor */
 	sc.latitudeAttr = ""
 	sc.longitudeAttr = ""
-	sc.latitude = 0
-	sc.longitude = 0
+	sc.latitude = 0.0
+	sc.longitude = 0.0
 }
 
 func (sc *SphinxClient) ResetGroupBy() {
@@ -1255,7 +1266,7 @@ func (sc *SphinxClient) doRequest(command int, version int, req []byte) (res []b
 	_, err = sc.conn.Write(req)
 	if err != nil {
 		sc.connerror = true
-		return nil, err
+		return nil, fmt.Errorf("conn.Write error: %v", err)
 	}
 
 	header := make([]byte, 8)
@@ -1286,7 +1297,7 @@ func (sc *SphinxClient) doRequest(command int, version int, req []byte) (res []b
 		res = res[4+wlen:]
 	case SEARCHD_ERROR, SEARCHD_RETRY:
 		wlen := binary.BigEndian.Uint32(res[0:4])
-		return nil, errors.New(string(res[4:wlen]))
+		return nil, fmt.Errorf("doRequest > SEARCHD_ERROR: " + string(res[4:wlen]))
 	default:
 		return nil, fmt.Errorf("doRequest > unknown status code (status=%d), ver: %d\n", status, ver)
 	}
@@ -1295,13 +1306,11 @@ func (sc *SphinxClient) doRequest(command int, version int, req []byte) (res []b
 }
 
 func writeFloat32ToBytes(bs []byte, f float32) []byte {
-	var byte4 = make([]byte, 4)
-	buf := bytes.NewBuffer(byte4)
+	buf := new(bytes.Buffer)
 	if err := binary.Write(buf, binary.BigEndian, f); err != nil {
 		fmt.Println(err)
 	}
-	byte4 = buf.Bytes()
-	return append(bs, byte4...)
+	return append(bs, buf.Bytes()...)
 }
 
 func writeInt16ToBytes(bs []byte, i int) []byte {
@@ -1327,4 +1336,9 @@ func writeLenStrToBytes(bs []byte, s string) []byte {
 	binary.BigEndian.PutUint32(byte4, uint32(len(s)))
 	bs = append(bs, byte4...)
 	return append(bs, []byte(s)...)
+}
+
+// For SetGeoAnchor()
+func DegreeToRadian(degree float32) float32 {
+	return degree * math.Pi / 180
 }

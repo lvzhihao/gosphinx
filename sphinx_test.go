@@ -42,7 +42,7 @@ func TestParallelQuery(t *testing.T) {
 	}
 
 	//Please use fork mode for "workers" setting of searchd in sphinx.conf, there are some concurrent issues in prefork mode now.
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 100; i++ {
 		if i > 0 && i%10 == 0 {
 			fmt.Printf("Already start %d goroutines...\n", i)
 		}
@@ -72,7 +72,7 @@ func TestInitClient(t *testing.T) {
 func TestQuery(t *testing.T) {
 	fmt.Println("Running sphinx Query() test...")
 
-	res, err := sc.Query(words, index, "test Query()")
+	res, err := sc.Query(words, index, "Test Query()")
 	if err != nil {
 		t.Fatalf("%s\n", err)
 	}
@@ -91,7 +91,7 @@ func TestQuery(t *testing.T) {
 	fieldWeights["content"] = 1
 	sc.SetFieldWeights(fieldWeights)
 
-	res, err = sc.Query("this", index, "test Query()")
+	res, err = sc.Query("this", index, "Test fieldWeights")
 	if err != nil {
 		t.Fatalf("%s\n", err)
 	}
@@ -102,7 +102,7 @@ func TestQuery(t *testing.T) {
 
 func TestAddQueryAndRunQueries(t *testing.T) {
 	fmt.Println("Running sphinx AddQuery() and RunQueries() test...")
-	_, err := sc.AddQuery("my", index, "It's the second Query.")
+	_, err := sc.AddQuery("my", index, "Test add query")
 
 	results, err := sc.RunQueries()
 	if err != nil {
@@ -124,7 +124,7 @@ func TestQueryXml(t *testing.T) {
 	fmt.Println("Running sphinx Query() xml test...")
 
 	// Test word "understand" in index "xml"
-	res, err := sc.Query("understand", "xml", "test xml Query()")
+	res, err := sc.Query("understand", "xml", "Test xml Query()")
 	if err != nil {
 		t.Fatalf("Query xml > %s\n", err)
 	}
@@ -197,7 +197,7 @@ func TestUpdateAttributes(t *testing.T) {
 	}
 
 	sc.SetFilter("group_id", []uint64{3, 4}, true) // exclude 3,4, then should get doc3, doc4 and doc5.
-	result, err := sc.Query("", index, "")
+	result, err := sc.Query("", index, "Test update attrs")
 	if err != nil {
 		t.Fatalf("UpdateAttributes > Query > %#v\n", err)
 	}
@@ -224,5 +224,34 @@ func TestBuildKeywords(t *testing.T) {
 		for i, kw := range keywords {
 			fmt.Printf("Keywords %d : %#v\n", i, kw)
 		}
+	}
+}
+
+func TestGeoDist(t *testing.T) {
+	sc = NewSphinxClient()
+	sc.SetServer(host, port)
+	
+	latitude := DegreeToRadian(29.862991)
+	longitude := DegreeToRadian(121.545471)
+	var radius float32 = 5000.0 // 5Kms
+	
+	sc.SetGeoAnchor("latitude", "longitude", latitude, longitude);
+	sc.SetSortMode(SPH_SORT_EXTENDED, "@geodist asc");
+	sc.SetFilterFloatRange("@geodist", 0.0, radius, false);
+	res, err := sc.Query("", index, "Test GeoDist")
+	if err != nil {
+		t.Fatalf("GeoDist > %v\n", err)
+	}
+	
+	// DocId: 2, 1, 3
+	for i, match := range res.Matches {
+		fmt.Printf("%d  DocId:%d  GeoDist:%fm\n", i, match.DocId, match.AttrValues[len(match.AttrValues)-1])
+	}
+	if res.Total != 3 {
+		t.Fatalf("GeoDist > res.Total: %d\n", res.Total)
+	}
+
+	if sc.GetLastWarning() != "" {
+		fmt.Printf("TestGeoDist warning: %s\n", sc.GetLastWarning())
 	}
 }
