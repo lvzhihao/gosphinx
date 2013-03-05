@@ -10,19 +10,19 @@ import (
 )
 
 var (
-	LogFile = "h:/sphinx.log" //"/var/log/sphinx.log"
-	ErrorLogFile = "h:/sphinx_err.log" //"/var/log/sphinx_err.log"
+	LogFile               = "h:/sphinx.log"     //"/var/log/sphinx.log"
+	ErrorLogFile          = "h:/sphinx_err.log" //"/var/log/sphinx_err.log"
 	logFile, errorLogFile *os.File
 )
 
-func init(){
+func init() {
 	var err error
-	
+
 	logFile, err = os.OpenFile(LogFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0777)
 	if err != nil {
 		panic(err)
 	}
-	
+
 	errorLogFile, err = os.OpenFile(ErrorLogFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0777)
 	if err != nil {
 		panic(err)

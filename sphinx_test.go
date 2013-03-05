@@ -8,7 +8,7 @@ import (
 var (
 	sc *SphinxClient
 	//host = "/var/run/searchd.sock"
-	host  = "localhost" 
+	host  = "localhost"
 	port  = 9312 // If set host to unix path, then just ignore port.
 	index = "test1"
 	words = "test"
@@ -243,7 +243,7 @@ func TestGeoDist(t *testing.T) {
 	if err := sc.Error(); err != nil {
 		t.Fatalf("GeoDist > %v\n", err)
 	}
-	
+
 	res, err := sc.Query("", index, "Test GeoDist")
 	if err != nil {
 		t.Fatalf("GeoDist > %v\n", err)

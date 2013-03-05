@@ -1,11 +1,11 @@
 package gosphinx
 
-import(
-	_ "github.com/Go-SQL-Driver/MySQL"
+import (
 	"bytes"
 	"database/sql"
 	"errors"
 	"fmt"
+	_ "github.com/Go-SQL-Driver/MySQL"
 	"io"
 	"reflect"
 	"strconv"
@@ -37,7 +37,6 @@ func NewSphinxQLClient() (sc *SphinxClient) {
 
 	return
 }
- 
 
 func (sc *SphinxClient) SetIndex(index string) error {
 	if index == "" {
@@ -48,6 +47,7 @@ func (sc *SphinxClient) SetIndex(index string) error {
 	sc.index = index
 	return nil
 }
+
 // For chaining
 func (sc *SphinxClient) Index(index string) *SphinxClient {
 	sc.err = sc.SetIndex(index)
@@ -88,9 +88,9 @@ func (sc *SphinxClient) GetDb() (err error) {
 		addr = "unix(" + sc.socket + ")"
 	} else {
 		// Already get default host and port in NewSphinxQLClient()
-		addr = "tcp(" + sc.host + ":" +strconv.Itoa(sc.port) + ")"
+		addr = "tcp(" + sc.host + ":" + strconv.Itoa(sc.port) + ")"
 	}
-	
+
 	if sc.DB, err = sql.Open("mysql", addr+"/"); err != nil {
 		return err
 	}
@@ -117,10 +117,10 @@ func (sc *SphinxClient) Init(obj interface{}) (err error) {
 
 	// "MyType" to "my_type"
 	if sc.index == "" {
-		fullTypeName := sc.val.Type().String()	// Such as "main.MyType"
+		fullTypeName := sc.val.Type().String() // Such as "main.MyType"
 		subStrs := strings.Split(fullTypeName, ".")
-		sc.index = subStrs[len(subStrs)-1]	// "MyType"
-		sc.index = CamelToSep(sc.index, '_')	// "my_type"
+		sc.index = subStrs[len(subStrs)-1]   // "MyType"
+		sc.index = CamelToSep(sc.index, '_') // "my_type"
 		fmt.Println("sc.index:", sc.index)
 	}
 
@@ -152,7 +152,7 @@ func (sc *SphinxClient) ExecuteReturnRowsAffected(sqlStr string) (rowsAffected i
 	if result == nil {
 		return -1, fmt.Errorf("ExecuteReturnRowsAffected: Nil result")
 	}
-	
+
 	rowsAffected64, err := result.RowsAffected()
 	if err != nil {
 		return -1, fmt.Errorf("ExecuteReturnRowsAffected: %v", err)
@@ -225,12 +225,12 @@ func (sc *SphinxClient) insert(obj interface{}, doReplace bool) (err error) {
 		sqlStr = "INSERT"
 	}
 	sqlStr += fmt.Sprintf(" INTO %s (%s) VALUES (%s)", sc.index, strings.Join(sc.columns, ","), strings.Join(colVals, ","))
-	
+
 	//fmt.Printf("Insert sql: %s\n", sqlStr)
-	if _, err = sc.Execute(sqlStr);	err != nil {
+	if _, err = sc.Execute(sqlStr); err != nil {
 		return fmt.Errorf("Insert > %v", err)
 	}
-	
+
 	return
 }
 
@@ -258,16 +258,16 @@ func (sc *SphinxClient) Update(obj interface{}) (rowsAffected int, err error) {
 	if err != nil {
 		return -1, fmt.Errorf("Update > %v", err)
 	}
-	
+
 	var updateStr string
 	for i, col := range sc.columns {
 		if colVals[i][0] == '\'' {
 			return -1, fmt.Errorf("Update > Do not support update string field: %v", colVals)
 		}
-		updateStr += col +"="+ colVals[i] +","
+		updateStr += col + "=" + colVals[i] + ","
 	}
-	updateStr = updateStr[: len(updateStr)-1]
-	
+	updateStr = updateStr[:len(updateStr)-1]
+
 	// If not set "where", then set WHERE clause to "id=..."
 	if sc.where == "" {
 		if sc.val.Kind() != reflect.Struct {
@@ -277,21 +277,20 @@ func (sc *SphinxClient) Update(obj interface{}) (rowsAffected int, err error) {
 		if idVal.Kind() != reflect.Int && !idVal.IsValid() {
 			return -1, fmt.Errorf("Update > Invalid Id field: %v", obj)
 		}
-		
-		sc.where = DefaultPK +"="+ strconv.Itoa(int(idVal.Int()))
+
+		sc.where = DefaultPK + "=" + strconv.Itoa(int(idVal.Int()))
 	}
-	
+
 	sqlStr := fmt.Sprintf("UPDATE %s SET %s WHERE %s", sc.index, updateStr, sc.where)
 	//fmt.Printf("Update sql: %s\n", sqlStr)
-	
+
 	rowsAffected, err = sc.ExecuteReturnRowsAffected(sqlStr)
 	if err != nil {
 		return -1, fmt.Errorf("Update> %v\n", err)
 	}
-	
+
 	return
 }
-
 
 // Must based on ID now.
 func (sc *SphinxClient) Delete(obj interface{}) (rowsAffected int, err error) {
@@ -299,28 +298,28 @@ func (sc *SphinxClient) Delete(obj interface{}) (rowsAffected int, err error) {
 		return -1, fmt.Errorf("Delete> %v", err)
 	}
 
-	sqlStr := "DELETE FROM "+ sc.index +" WHERE id "
-	switch v := obj.(type){
-		case int:
-			if v <= 0 {
-				return -1, fmt.Errorf("Delete> Invalid id val: %d", v)
+	sqlStr := "DELETE FROM " + sc.index + " WHERE id "
+	switch v := obj.(type) {
+	case int:
+		if v <= 0 {
+			return -1, fmt.Errorf("Delete> Invalid id val: %d", v)
+		}
+		sqlStr += "= " + strconv.Itoa(v)
+	case []int:
+		if len(v) == 0 {
+			return -1, fmt.Errorf("Delete> Empty []int")
+		}
+
+		sqlStr += "IN ("
+		for _, id := range v {
+			if id <= 0 {
+				return -1, fmt.Errorf("Delete> Invalid id val: %d", id)
 			}
-			sqlStr += "= " + strconv.Itoa(v)
-		case []int:
-			if len(v) == 0 {
-				return -1, fmt.Errorf("Delete> Empty []int")
-			}
-		
-			sqlStr += "IN ("
-			for _, id := range v {
-				if id <= 0 {
-					return -1, fmt.Errorf("Delete> Invalid id val: %d", id)
-				}
-				sqlStr += strconv.Itoa(id) + ","
-			}
-			sqlStr = sqlStr[:len(sqlStr)-1] + ")" // Change the last "," to ")"
-		default:
-			return -1, fmt.Errorf("Delete> Invalid type, must be int or []int: %#v", obj)
+			sqlStr += strconv.Itoa(id) + ","
+		}
+		sqlStr = sqlStr[:len(sqlStr)-1] + ")" // Change the last "," to ")"
+	default:
+		return -1, fmt.Errorf("Delete> Invalid type, must be int or []int: %#v", obj)
 	}
 
 	rowsAffected, err = sc.ExecuteReturnRowsAffected(sqlStr)
@@ -335,8 +334,8 @@ func (sc *SphinxClient) AttachToRT(diskIndex, rtIndex string) error {
 	if diskIndex == "" || rtIndex == "" {
 		return fmt.Errorf("AttachToRT > Empty index name. disk: '%s'  rt: '%s'", diskIndex, rtIndex)
 	}
-	
-	if _, err := sc.Execute("ATTACH INDEX "+ diskIndex +" TO RTINDEX " + rtIndex); err != nil {
+
+	if _, err := sc.Execute("ATTACH INDEX " + diskIndex + " TO RTINDEX " + rtIndex); err != nil {
 		return fmt.Errorf("AttachToRT(%s) > %v", index, err)
 	}
 	return nil
@@ -347,7 +346,7 @@ func (sc *SphinxClient) FlushRT(rtIndex string) error {
 	if rtIndex == "" {
 		return fmt.Errorf("FlushRT > Empty RT index name!")
 	}
-	
+
 	if _, err := sc.Execute("FLUSH RTINDEX " + rtIndex); err != nil {
 		return fmt.Errorf("FlushRT(%s) > %v", rtIndex, err)
 	}
@@ -514,4 +513,3 @@ func escapeString(txt string) string {
 	io.WriteString(&buf, txt[last:])
 	return buf.String()
 }
-

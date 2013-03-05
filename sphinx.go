@@ -19,9 +19,9 @@ import (
 var (
 	Host       = "localhost"
 	Port       = 9312
-	SQLPort		= 9306
+	SQLPort    = 9306
 	Socket     = ""
-	SQLSocket	= ""
+	SQLSocket  = ""
 	Limit      = 20
 	Mode       = SPH_MATCH_EXTENDED // "When you use one of the legacy modes, Sphinx internally converts the query to the appropriate new syntax and chooses the appropriate ranker."
 	Sort       = SPH_SORT_RELEVANCE
@@ -203,7 +203,7 @@ type SphinxClient struct {
 	longitude     float32
 
 	warning   string
-	err	error
+	err       error
 	connerror bool // connection error vs remote error flag
 	timeout   time.Duration
 
@@ -216,13 +216,13 @@ type SphinxClient struct {
 	fieldWeights map[string]int
 	overrides    map[string]override
 	selectStr    string // select-list (attributes or expressions, with optional aliases)
-	
+
 	// For sphinxql
-	DB *sql.DB	// Capitalize, so that can "defer sc.Db.Close()"
-	val reflect.Value	// object parameter's reflect value
-	index string	// index name for sphinxql query.
+	DB      *sql.DB       // Capitalize, so that can "defer sc.Db.Close()"
+	val     reflect.Value // object parameter's reflect value
+	index   string        // index name for sphinxql query.
 	columns []string
-	where string
+	where   string
 }
 
 func NewSphinxClient() (sc *SphinxClient) {
@@ -252,6 +252,7 @@ func NewSphinxClient() (sc *SphinxClient) {
 func (sc *SphinxClient) GetLastError() error {
 	return sc.err
 }
+
 // Just for convenience
 func (sc *SphinxClient) Error() error {
 	return sc.err
@@ -284,7 +285,7 @@ func (sc *SphinxClient) SetServer(host string, port int) error {
 		sc.err = fmt.Errorf("SetServer > port must be positive: %d", port)
 		return sc.err
 	}
-	
+
 	sc.port = port
 	return nil
 }
@@ -1146,7 +1147,7 @@ func (sc *SphinxClient) UpdateAttributes(index string, attrs []string, values []
 			req = writeInt32ToBytes(req, 0)
 		}
 	}
-	
+
 	for _, attr := range attrs {
 		req = writeLenStrToBytes(req, attr)
 		if mva {
