@@ -8,7 +8,7 @@ import (
 var (
 	sc *SphinxClient
 	//host = "/var/run/searchd.sock"
-	host  = "localhost"
+	host  = "localhost" 
 	port  = 9312 // If set host to unix path, then just ignore port.
 	index = "test1"
 	words = "test"
@@ -17,8 +17,7 @@ var (
 func TestParallelQuery(t *testing.T) {
 	fmt.Println("Running parallel Query() test...")
 	f := func(i int) {
-		scParallel := NewSphinxClient()
-		scParallel.SetServer(host, port)
+		scParallel := NewSphinxClient().Server(host, port)
 		if err := scParallel.Open(); err != nil {
 			t.Fatalf("Parallel %d > %v\n", i, err)
 		}
@@ -42,19 +41,21 @@ func TestParallelQuery(t *testing.T) {
 	}
 
 	//Please use fork mode for "workers" setting of searchd in sphinx.conf, there are some concurrent issues in prefork mode now.
-	for i := 0; i < 100; i++ {
-		if i > 0 && i%10 == 0 {
+	for i := 1; i <= 50; i++ {
+		go f(i)
+		if i%10 == 0 {
 			fmt.Printf("Already start %d goroutines...\n", i)
 		}
-		go f(i)
 	}
 }
 
 func TestInitClient(t *testing.T) {
 	fmt.Println("Init sphinx client ...")
-	sc = NewSphinxClient()
-	sc.SetServer(host, port)
-	sc.SetConnectTimeout(5000)
+	sc = NewSphinxClient().Server(host, port).ConnectTimeout(5000)
+	if err := sc.Error(); err != nil {
+		t.Fatalf("Init sphinx client > %v\n", err)
+	}
+
 	if err := sc.Open(); err != nil {
 		t.Fatalf("Init sphinx client > %v\n", err)
 	}
@@ -67,6 +68,7 @@ func TestInitClient(t *testing.T) {
 	for _, row := range status {
 		fmt.Printf("%20s:\t%s\n", row[0], row[1])
 	}
+
 }
 
 func TestQuery(t *testing.T) {
@@ -187,7 +189,7 @@ func TestUpdateAttributes(t *testing.T) {
 	v2 := []interface{}{uint64(2), 4, 16}
 	values := [][]interface{}{v1, v2}
 	//v3 := []interface{uint64(4), []int{4,5,6,7}}
-	ndocs, err := sc.UpdateAttributes(index, attrs, values)
+	ndocs, err := sc.UpdateAttributes(index, attrs, values, false)
 	if err != nil {
 		t.Fatalf("UpdateAttributes > %s\n", err)
 	}
@@ -230,19 +232,23 @@ func TestBuildKeywords(t *testing.T) {
 func TestGeoDist(t *testing.T) {
 	sc = NewSphinxClient()
 	sc.SetServer(host, port)
-	
+
 	latitude := DegreeToRadian(29.862991)
 	longitude := DegreeToRadian(121.545471)
 	var radius float32 = 5000.0 // 5Kms
+
+	sc.GeoAnchor("latitude", "longitude", latitude, longitude)
+	sc.SortMode(SPH_SORT_EXTENDED, "@geodist asc")
+	sc.FilterFloatRange("@geodist", 0.0, radius, false)
+	if err := sc.Error(); err != nil {
+		t.Fatalf("GeoDist > %v\n", err)
+	}
 	
-	sc.SetGeoAnchor("latitude", "longitude", latitude, longitude);
-	sc.SetSortMode(SPH_SORT_EXTENDED, "@geodist asc");
-	sc.SetFilterFloatRange("@geodist", 0.0, radius, false);
 	res, err := sc.Query("", index, "Test GeoDist")
 	if err != nil {
 		t.Fatalf("GeoDist > %v\n", err)
 	}
-	
+
 	// DocId: 2, 1, 3
 	for i, match := range res.Matches {
 		fmt.Printf("%d  DocId:%d  GeoDist:%fm\n", i, match.DocId, match.AttrValues[len(match.AttrValues)-1])

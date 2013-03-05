@@ -10,8 +10,24 @@ import (
 )
 
 var (
-	LogFile = "/var/log/sphinx.log"
+	LogFile = "h:/sphinx.log" //"/var/log/sphinx.log"
+	ErrorLogFile = "h:/sphinx_err.log" //"/var/log/sphinx_err.log"
+	logFile, errorLogFile *os.File
 )
+
+func init(){
+	var err error
+	
+	logFile, err = os.OpenFile(LogFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0777)
+	if err != nil {
+		panic(err)
+	}
+	
+	errorLogFile, err = os.OpenFile(ErrorLogFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0777)
+	if err != nil {
+		panic(err)
+	}
+}
 
 func LogConnError(err error) {
 	var s string
@@ -49,14 +65,19 @@ func LogConnError(err error) {
 }
 
 func Log(v ...interface{}) {
-	logFile, err := os.OpenFile(LogFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0777)
-	if err != nil {
-		panic(err)
-	}
 	logger := log.New(logFile, "", log.Ldate|log.Ltime)
+	logger.Print(v...)
+}
+
+func LogError(v ...interface{}) {
+	logger := log.New(errorLogFile, "", log.Ldate|log.Ltime)
 	logger.Print(v...)
 }
 
 func Logf(format string, a ...interface{}) {
 	Log(fmt.Sprintf(format, a...))
+}
+
+func LogErrorf(format string, a ...interface{}) {
+	LogError(fmt.Sprintf(format, a...))
 }

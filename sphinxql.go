@@ -2,9 +2,11 @@ package gosphinx
 
 import(
 	_ "github.com/Go-SQL-Driver/MySQL"
+	"bytes"
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"reflect"
 	"strconv"
 	"strings"
@@ -39,7 +41,8 @@ func NewSphinxQLClient() (sc *SphinxClient) {
 
 func (sc *SphinxClient) SetIndex(index string) error {
 	if index == "" {
-		return errors.New("SetIndex > Index name is empty!")
+		sc.err = errors.New("SetIndex > Index name is empty!")
+		return sc.err
 	}
 
 	sc.index = index
@@ -51,16 +54,31 @@ func (sc *SphinxClient) Index(index string) *SphinxClient {
 	return sc
 }
 
-func (sc *SphinxClient) SetColumns(columns []string) error {
+func (sc *SphinxClient) SetColumns(columns ...string) error {
 	if len(columns) == 0 {
-		return errors.New("SetColumns > Columns is empty!")
+		sc.err = errors.New("SetColumns > Columns is empty!")
+		return sc.err
 	}
 
 	sc.columns = columns
 	return nil
 }
-func (sc *SphinxClient) Columns(columns []string) *SphinxClient {
-	sc.err = sc.SetColumns(columns)
+func (sc *SphinxClient) Columns(columns ...string) *SphinxClient {
+	sc.err = sc.SetColumns(columns...)
+	return sc
+}
+
+func (sc *SphinxClient) SetWhere(where string) error {
+	if where == "" {
+		sc.err = errors.New("SetWhere > where is empty!")
+		return sc.err
+	}
+
+	sc.where = where
+	return nil
+}
+func (sc *SphinxClient) Where(where string) *SphinxClient {
+	sc.err = sc.SetWhere(where)
 	return sc
 }
 
@@ -109,7 +127,6 @@ func (sc *SphinxClient) Init(obj interface{}) (err error) {
 	return
 }
 
-// Sphinx doesn't support LastInsertId now.
 func (sc *SphinxClient) Execute(sqlStr string) (result sql.Result, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -148,6 +165,7 @@ func (sc *SphinxClient) ExecuteReturnRowsAffected(sqlStr string) (rowsAffected i
 	return
 }
 
+// Sphinx doesn't support LastInsertId now.
 func (sc *SphinxClient) insert(obj interface{}, doReplace bool) (err error) {
 	if err = sc.Init(obj); err != nil {
 		return fmt.Errorf("Insert > %v", err)
@@ -187,7 +205,7 @@ func (sc *SphinxClient) insert(obj interface{}, doReplace bool) (err error) {
 				return
 			}
 		} else {
-			// 如果不是struct，则认为只有一个‘id’字段
+			// if not struct，then it must just one ‘id’ field, "ID column must be present in all cases."
 			sc.columns = []string{DefaultPK}
 			s, err := GetValQuoteStr(sc.val)
 			if err != nil {
@@ -200,14 +218,15 @@ func (sc *SphinxClient) insert(obj interface{}, doReplace bool) (err error) {
 		return
 	}
 
-	sqlStr := fmt.Sprintf(" INTO %s (%s) VALUES (%s)", sc.index, strings.Join(sc.columns, ","), strings.Join(colVals, ","))
+	var sqlStr string
 	if doReplace {
-		sqlStr = "REPLACE" + sqlStr
+		sqlStr = "REPLACE"
 	} else {
-		sqlStr = "INSERT" + sqlStr
+		sqlStr = "INSERT"
 	}
+	sqlStr += fmt.Sprintf(" INTO %s (%s) VALUES (%s)", sc.index, strings.Join(sc.columns, ","), strings.Join(colVals, ","))
 	
-	//fmt.Printf("Insert sql: %s\n colVals: %#v\n", sqlStr, colVals)
+	//fmt.Printf("Insert sql: %s\n", sqlStr)
 	if _, err = sc.Execute(sqlStr);	err != nil {
 		return fmt.Errorf("Insert > %v", err)
 	}
@@ -225,34 +244,134 @@ func (sc *SphinxClient) Replace(obj interface{}) error {
 	return sc.insert(obj, true)
 }
 
-func (sc *SphinxClient) Delete(id int) (rowsAffected int, err error) {
+// Must set columns!
+func (sc *SphinxClient) Update(obj interface{}) (rowsAffected int, err error) {
+	if err = sc.Init(obj); err != nil {
+		return -1, fmt.Errorf("Update > %v", err)
+	}
+	// Must set 'Columns'
+	if len(sc.columns) == 0 {
+		return -1, fmt.Errorf("Update > columns is not set!")
+	}
+
+	colVals, err := GetColVals(sc.val, sc.columns)
+	if err != nil {
+		return -1, fmt.Errorf("Update > %v", err)
+	}
+	
+	var updateStr string
+	for i, col := range sc.columns {
+		if colVals[i][0] == '\'' {
+			return -1, fmt.Errorf("Update > Do not support update string field: %v", colVals)
+		}
+		updateStr += col +"="+ colVals[i] +","
+	}
+	updateStr = updateStr[: len(updateStr)-1]
+	
+	// If not set "where", then set WHERE clause to "id=..."
+	if sc.where == "" {
+		if sc.val.Kind() != reflect.Struct {
+			return -1, fmt.Errorf("Update > If not set WHERE clause, then must be a struct object with Id field: %v", obj)
+		}
+		idVal := sc.val.FieldByName(DefaultPK)
+		if idVal.Kind() != reflect.Int && !idVal.IsValid() {
+			return -1, fmt.Errorf("Update > Invalid Id field: %v", obj)
+		}
+		
+		sc.where = DefaultPK +"="+ strconv.Itoa(int(idVal.Int()))
+	}
+	
+	sqlStr := fmt.Sprintf("UPDATE %s SET %s WHERE %s", sc.index, updateStr, sc.where)
+	//fmt.Printf("Update sql: %s\n", sqlStr)
+	
+	rowsAffected, err = sc.ExecuteReturnRowsAffected(sqlStr)
+	if err != nil {
+		return -1, fmt.Errorf("Update> %v\n", err)
+	}
+	
+	return
+}
+
+
+// Must based on ID now.
+func (sc *SphinxClient) Delete(obj interface{}) (rowsAffected int, err error) {
 	if err = sc.Init(nil); err != nil {
 		return -1, fmt.Errorf("Delete> %v", err)
 	}
 
-	sqlStr := fmt.Sprintf("DELETE FROM %s WHERE id=%d", sc.index, id)
+	sqlStr := "DELETE FROM "+ sc.index +" WHERE id "
+	switch v := obj.(type){
+		case int:
+			if v <= 0 {
+				return -1, fmt.Errorf("Delete> Invalid id val: %d", v)
+			}
+			sqlStr += "= " + strconv.Itoa(v)
+		case []int:
+			if len(v) == 0 {
+				return -1, fmt.Errorf("Delete> Empty []int")
+			}
+		
+			sqlStr += "IN ("
+			for _, id := range v {
+				if id <= 0 {
+					return -1, fmt.Errorf("Delete> Invalid id val: %d", id)
+				}
+				sqlStr += strconv.Itoa(id) + ","
+			}
+			sqlStr = sqlStr[:len(sqlStr)-1] + ")" // Change the last "," to ")"
+		default:
+			return -1, fmt.Errorf("Delete> Invalid type, must be int or []int: %#v", obj)
+	}
+
 	rowsAffected, err = sc.ExecuteReturnRowsAffected(sqlStr)
 	if err != nil {
-		return 0, fmt.Errorf("Delete> id:%d  %v", id, err)
+		return 0, fmt.Errorf("Delete>  %v", err)
 	}
 	return
 }
 
-// BEGIN, COMMIT, and ROLLBACK
-
-// ShowTables
-
-// Added in version 2.1.1-beta, clears the RT index completely.
-func (sc *SphinxClient) TruncateRT(index string) error {
-	if index == "" {
-		if sc.index != "" {
-			index = sc.index
-		} else {
-			return errors.New("Truncate > Empty index name!")
-		}
+// ATTACH currently supports empty target RT indexes only.
+func (sc *SphinxClient) AttachToRT(diskIndex, rtIndex string) error {
+	if diskIndex == "" || rtIndex == "" {
+		return fmt.Errorf("AttachToRT > Empty index name. disk: '%s'  rt: '%s'", diskIndex, rtIndex)
 	}
-	if _, err := sc.Execute("TRUNCATE RTINDEX " + index); err != nil {
-		return fmt.Errorf("Truncate(%s) > %v", index, err)
+	
+	if _, err := sc.Execute("ATTACH INDEX "+ diskIndex +" TO RTINDEX " + rtIndex); err != nil {
+		return fmt.Errorf("AttachToRT(%s) > %v", index, err)
+	}
+	return nil
+}
+
+// Forcibly flushes RT index RAM chunk contents to disk.
+func (sc *SphinxClient) FlushRT(rtIndex string) error {
+	if rtIndex == "" {
+		return fmt.Errorf("FlushRT > Empty RT index name!")
+	}
+	
+	if _, err := sc.Execute("FLUSH RTINDEX " + rtIndex); err != nil {
+		return fmt.Errorf("FlushRT(%s) > %v", rtIndex, err)
+	}
+	return nil
+}
+
+// Added in 2.1.1-beta, clears the RT index completely.
+func (sc *SphinxClient) TruncateRT(rtIndex string) error {
+	if rtIndex == "" {
+		return errors.New("TruncateRT > Empty RT index name!")
+	}
+	if _, err := sc.Execute("TRUNCATE RTINDEX " + rtIndex); err != nil {
+		return fmt.Errorf("TruncateRT(%s) > %v", rtIndex, err)
+	}
+	return nil
+}
+
+// Added in 2.1.1-beta, enqueues a RT index for optimization in a background thread.
+func (sc *SphinxClient) Optimize(rtIndex string) error {
+	if rtIndex == "" {
+		return errors.New("Optimize > Empty RT index name!")
+	}
+	if _, err := sc.Execute("OPTIMIZE INDEX " + rtIndex); err != nil {
+		return fmt.Errorf("Optimize(%s) > %v", rtIndex, err)
 	}
 	return nil
 }
@@ -280,7 +399,6 @@ func CamelToSep(ori string, sep byte) string {
 	return string(bs)
 }
 
-// Set data to database, such as 'Insert','Update'，仅用于设置了sc.columns的时候
 func GetColVals(val reflect.Value, cols []string) (values []string, err error) {
 	typ := val.Type()
 	// if not struct, then must just have one column.
@@ -305,6 +423,7 @@ func GetColVals(val reflect.Value, cols []string) (values []string, err error) {
 			return
 		}
 	}
+
 	return
 }
 
@@ -359,9 +478,40 @@ func getFieldIndexByName(typ reflect.Type, name string) (index []int) {
 
 // No escape handle!?
 func QuoteStr(s string) string {
-	return "'" + s + "'"
+	return "'" + escapeString(s) + "'"
 }
-/*
-  $search=array("\\\\","\\0","\\n","\\r","\Z","\'",'\"');
-  "\","\0","\n","\r","\x1a","'",'"'
-*/  
+
+// mysql_real_escape_string()  “\”, “'”, “"”, NUL (ASCII 0), “\n”, “\r”, and Control+Z
+func escapeString(txt string) string {
+	var (
+		esc string
+		buf bytes.Buffer
+	)
+	last := 0
+	for ii, bb := range txt {
+		switch bb {
+		case 0:
+			esc = `\0`
+		case '\n':
+			esc = `\n`
+		case '\r':
+			esc = `\r`
+		case '\\':
+			esc = `\\`
+		case '\'':
+			esc = `\'`
+		case '"':
+			esc = `\"`
+		case '\032':
+			esc = `\Z`
+		default:
+			continue
+		}
+		io.WriteString(&buf, txt[last:ii])
+		io.WriteString(&buf, esc)
+		last = ii + 1
+	}
+	io.WriteString(&buf, txt[last:])
+	return buf.String()
+}
+
