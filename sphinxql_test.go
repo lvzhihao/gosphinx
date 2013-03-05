@@ -136,7 +136,7 @@ func TestDelete(t *testing.T) {
 
 	// Test batch delete
 	sqlc = NewSphinxQLClient().Server(host, sqlPort).Index(rtIndex)
-	// Delete the last one.
+	// Delete 3,4
 	rowsAffected, err = sqlc.Delete([]int{amount - 1, amount - 2})
 	if err != nil {
 		t.Fatalf("TestDelete > %v\n", err)
