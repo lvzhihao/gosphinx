@@ -172,7 +172,7 @@ func (sc *SphinxClient) insert(obj interface{}, doReplace bool) (err error) {
 	}
 
 	var colVals []string
-	// 如果没有设置sc.columns，则默认选择obj的所有field作为columns
+	// If not set sc.columns, then use all fields as columns
 	if len(sc.columns) == 0 {
 		if sc.val.Kind() == reflect.Struct {
 			var appendField func(*[]string, *[]string, reflect.Value) error
@@ -455,14 +455,11 @@ func GetValQuoteStr(val reflect.Value) (string, error) {
 	return "", nil
 }
 
-//有时需要获取在fields中的index，以便对StructFiled和value分别进行操作；FieldByNameFunc只能获取到field的value或者Type。
 func getFieldIndexByName(typ reflect.Type, name string) (index []int) {
 	for i := 0; i < typ.NumField(); i++ {
-		// 检测field是否是struct
 		field := typ.Field(i)
 		var subIndex []int
 		if field.Type.Kind() == reflect.Struct {
-			// 如果获取到的subIndex是有效的，则把当前的index与subIndex合并返回
 			if subIndex = getFieldIndexByName(field.Type, name); subIndex[0] >= 0 {
 				return append([]int{i}, subIndex...)
 			}
@@ -475,7 +472,6 @@ func getFieldIndexByName(typ reflect.Type, name string) (index []int) {
 	return []int{-1}
 }
 
-// No escape handle!?
 func QuoteStr(s string) string {
 	return "'" + escapeString(s) + "'"
 }
