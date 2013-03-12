@@ -336,7 +336,7 @@ func (sc *SphinxClient) AttachToRT(diskIndex, rtIndex string) error {
 	}
 
 	if _, err := sc.Execute("ATTACH INDEX " + diskIndex + " TO RTINDEX " + rtIndex); err != nil {
-		return fmt.Errorf("AttachToRT(%s) > %v", index, err)
+		return fmt.Errorf("AttachToRT(%s) > %v", rtIndex, err)
 	}
 	return nil
 }
