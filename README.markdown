@@ -3,14 +3,12 @@ About
 
 The sphinx(full text search server) client package for the Go programming language.
 
-Installation
-------------
+## Installation
 
 `go get github.com/yunge/gosphinx`
 
 
-Testing
--------
+## Testing
 
 Import "documents.sql" to "test" database in mysql;
 
@@ -29,6 +27,23 @@ Then "cd" to gosphinx:
 
 `go test`
 
+## Examples
+```Go
+import (
+  "github.com/yunge/gosphinx"
+)
+
+sc := NewSphinxClient().Server(host, port).Query(words, index, "Some comment...")
+if err := sc.Error(); err != nil {
+	return fmt.Errorf("Init sphinx client> %v", err)
+}
+
+for _, match := range sc.Matches {
+	// handle match.DocId
+}
+
+```
+More examples can be found in test files.
 
 ## LICENSE
 
