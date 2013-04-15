@@ -6,9 +6,9 @@ import (
 )
 
 var (
-	sc *SphinxClient
+	sc *Client
 	//host = "/var/run/searchd.sock"
-	host  = "localhost"
+	host  = "192.168.1.234" //"localhost"
 	port  = 9312 // If set host to unix path, then just ignore port.
 	index = "test1"
 	words = "test"
@@ -17,7 +17,7 @@ var (
 func TestParallelQuery(t *testing.T) {
 	fmt.Println("Running parallel Query() test...")
 	f := func(i int) {
-		scParallel := NewSphinxClient().Server(host, port)
+		scParallel := NewClient().Server(host, port)
 		if err := scParallel.Open(); err != nil {
 			t.Fatalf("Parallel %d > %v\n", i, err)
 		}
@@ -41,7 +41,7 @@ func TestParallelQuery(t *testing.T) {
 	}
 
 	//Please use fork mode for "workers" setting of searchd in sphinx.conf, there are some concurrent issues in prefork mode now.
-	for i := 1; i <= 50; i++ {
+	for i := 1; i <= 30; i++ {
 		go f(i)
 		if i%10 == 0 {
 			fmt.Printf("Already start %d goroutines...\n", i)
@@ -51,7 +51,7 @@ func TestParallelQuery(t *testing.T) {
 
 func TestInitClient(t *testing.T) {
 	fmt.Println("Init sphinx client ...")
-	sc = NewSphinxClient().Server(host, port).ConnectTimeout(5000)
+	sc = NewClient().Server(host, port).ConnectTimeout(5000)
 	if err := sc.Error(); err != nil {
 		t.Fatalf("Init sphinx client > %v\n", err)
 	}
@@ -230,8 +230,7 @@ func TestBuildKeywords(t *testing.T) {
 }
 
 func TestGeoDist(t *testing.T) {
-	sc = NewSphinxClient()
-	sc.SetServer(host, port)
+	sc = NewClient().Server(host, port)
 
 	latitude := DegreeToRadian(29.862991)
 	longitude := DegreeToRadian(121.545471)

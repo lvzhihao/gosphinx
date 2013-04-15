@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	LogFile               = "h:/sphinx.log"     //"/var/log/sphinx.log"
-	ErrorLogFile          = "h:/sphinx_err.log" //"/var/log/sphinx_err.log"
+	LogFile               = "c:/sphinx.log"     //"/var/log/sphinx.log"
+	ErrorLogFile          = "c:/sphinx_err.log" //"/var/log/sphinx_err.log"
 	logFile, errorLogFile *os.File
 )
 

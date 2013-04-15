@@ -16,8 +16,8 @@ const (
 	DefaultPK = "Id"
 )
 
-func NewSphinxQLClient() (sc *SphinxClient) {
-	sc = new(SphinxClient)
+func NewSQLClient() (sc *Client) {
+	sc = new(Client)
 	if SQLSocket != "" {
 		sc.socket = SQLSocket
 	} else {
@@ -38,7 +38,7 @@ func NewSphinxQLClient() (sc *SphinxClient) {
 	return
 }
 
-func (sc *SphinxClient) SetIndex(index string) error {
+func (sc *Client) SetIndex(index string) error {
 	if index == "" {
 		sc.err = errors.New("SetIndex > Index name is empty!")
 		return sc.err
@@ -49,12 +49,12 @@ func (sc *SphinxClient) SetIndex(index string) error {
 }
 
 // For chaining
-func (sc *SphinxClient) Index(index string) *SphinxClient {
+func (sc *Client) Index(index string) *Client {
 	sc.err = sc.SetIndex(index)
 	return sc
 }
 
-func (sc *SphinxClient) SetColumns(columns ...string) error {
+func (sc *Client) SetColumns(columns ...string) error {
 	if len(columns) == 0 {
 		sc.err = errors.New("SetColumns > Columns is empty!")
 		return sc.err
@@ -63,12 +63,12 @@ func (sc *SphinxClient) SetColumns(columns ...string) error {
 	sc.columns = columns
 	return nil
 }
-func (sc *SphinxClient) Columns(columns ...string) *SphinxClient {
+func (sc *Client) Columns(columns ...string) *Client {
 	sc.err = sc.SetColumns(columns...)
 	return sc
 }
 
-func (sc *SphinxClient) SetWhere(where string) error {
+func (sc *Client) SetWhere(where string) error {
 	if where == "" {
 		sc.err = errors.New("SetWhere > where is empty!")
 		return sc.err
@@ -77,17 +77,17 @@ func (sc *SphinxClient) SetWhere(where string) error {
 	sc.where = where
 	return nil
 }
-func (sc *SphinxClient) Where(where string) *SphinxClient {
+func (sc *Client) Where(where string) *Client {
 	sc.err = sc.SetWhere(where)
 	return sc
 }
 
-func (sc *SphinxClient) GetDb() (err error) {
+func (sc *Client) GetDb() (err error) {
 	var addr string
 	if sc.socket != "" {
 		addr = "unix(" + sc.socket + ")"
 	} else {
-		// Already get default host and port in NewSphinxQLClient()
+		// Already get default host and port in NewSQLClient()
 		addr = "tcp(" + sc.host + ":" + strconv.Itoa(sc.port) + ")"
 	}
 
@@ -99,7 +99,7 @@ func (sc *SphinxClient) GetDb() (err error) {
 }
 
 // Caller should close db.
-func (sc *SphinxClient) Init(obj interface{}) (err error) {
+func (sc *Client) Init(obj interface{}) (err error) {
 	// Init sql.DB
 	if err = sc.GetDb(); err != nil {
 		return fmt.Errorf("Init > %v", err)
@@ -127,7 +127,7 @@ func (sc *SphinxClient) Init(obj interface{}) (err error) {
 	return
 }
 
-func (sc *SphinxClient) Execute(sqlStr string) (result sql.Result, err error) {
+func (sc *Client) Execute(sqlStr string) (result sql.Result, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			LogError("Recovered from Execute(): ", r)
@@ -144,7 +144,7 @@ func (sc *SphinxClient) Execute(sqlStr string) (result sql.Result, err error) {
 	return sc.DB.Exec(sqlStr)
 }
 
-func (sc *SphinxClient) ExecuteReturnRowsAffected(sqlStr string) (rowsAffected int, err error) {
+func (sc *Client) ExecuteReturnRowsAffected(sqlStr string) (rowsAffected int, err error) {
 	result, err := sc.Execute(sqlStr)
 	if err != nil {
 		return -1, err
@@ -166,7 +166,7 @@ func (sc *SphinxClient) ExecuteReturnRowsAffected(sqlStr string) (rowsAffected i
 }
 
 // Sphinx doesn't support LastInsertId now.
-func (sc *SphinxClient) insert(obj interface{}, doReplace bool) (err error) {
+func (sc *Client) insert(obj interface{}, doReplace bool) (err error) {
 	if err = sc.Init(obj); err != nil {
 		return fmt.Errorf("Insert > %v", err)
 	}
@@ -234,18 +234,18 @@ func (sc *SphinxClient) insert(obj interface{}, doReplace bool) (err error) {
 	return
 }
 
-func (sc *SphinxClient) Insert(obj interface{}) error {
+func (sc *Client) Insert(obj interface{}) error {
 	// false means NOT do REPLACE 
 	return sc.insert(obj, false)
 }
 
-func (sc *SphinxClient) Replace(obj interface{}) error {
+func (sc *Client) Replace(obj interface{}) error {
 	// true means DO REPLACE
 	return sc.insert(obj, true)
 }
 
 // Must set columns!
-func (sc *SphinxClient) Update(obj interface{}) (rowsAffected int, err error) {
+func (sc *Client) Update(obj interface{}) (rowsAffected int, err error) {
 	if err = sc.Init(obj); err != nil {
 		return -1, fmt.Errorf("Update > %v", err)
 	}
@@ -293,7 +293,7 @@ func (sc *SphinxClient) Update(obj interface{}) (rowsAffected int, err error) {
 }
 
 // Must based on ID now.
-func (sc *SphinxClient) Delete(obj interface{}) (rowsAffected int, err error) {
+func (sc *Client) Delete(obj interface{}) (rowsAffected int, err error) {
 	if err = sc.Init(nil); err != nil {
 		return -1, fmt.Errorf("Delete> %v", err)
 	}
@@ -330,7 +330,7 @@ func (sc *SphinxClient) Delete(obj interface{}) (rowsAffected int, err error) {
 }
 
 // ATTACH currently supports empty target RT indexes only.
-func (sc *SphinxClient) AttachToRT(diskIndex, rtIndex string) error {
+func (sc *Client) AttachToRT(diskIndex, rtIndex string) error {
 	if diskIndex == "" || rtIndex == "" {
 		return fmt.Errorf("AttachToRT > Empty index name. disk: '%s'  rt: '%s'", diskIndex, rtIndex)
 	}
@@ -342,7 +342,7 @@ func (sc *SphinxClient) AttachToRT(diskIndex, rtIndex string) error {
 }
 
 // Forcibly flushes RT index RAM chunk contents to disk.
-func (sc *SphinxClient) FlushRT(rtIndex string) error {
+func (sc *Client) FlushRT(rtIndex string) error {
 	if rtIndex == "" {
 		return fmt.Errorf("FlushRT > Empty RT index name!")
 	}
@@ -354,7 +354,7 @@ func (sc *SphinxClient) FlushRT(rtIndex string) error {
 }
 
 // Added in 2.1.1-beta, clears the RT index completely.
-func (sc *SphinxClient) TruncateRT(rtIndex string) error {
+func (sc *Client) TruncateRT(rtIndex string) error {
 	if rtIndex == "" {
 		return errors.New("TruncateRT > Empty RT index name!")
 	}
@@ -365,7 +365,7 @@ func (sc *SphinxClient) TruncateRT(rtIndex string) error {
 }
 
 // Added in 2.1.1-beta, enqueues a RT index for optimization in a background thread.
-func (sc *SphinxClient) Optimize(rtIndex string) error {
+func (sc *Client) Optimize(rtIndex string) error {
 	if rtIndex == "" {
 		return errors.New("Optimize > Empty RT index name!")
 	}
