@@ -19,9 +19,9 @@ import (
 var (
 	Host       = "localhost"
 	Port       = 9312
-	SQLPort    = 9306
+	SqlPort    = 9306
 	Socket     = ""
-	SQLSocket  = ""
+	SqlSocket  = ""
 	Limit      = 20
 	Mode       = SPH_MATCH_EXTENDED // "When you use one of the legacy modes, Sphinx internally converts the query to the appropriate new syntax and chooses the appropriate ranker."
 	Sort       = SPH_SORT_RELEVANCE
@@ -174,7 +174,40 @@ type Result struct {
 	Status  int // Query status (refer to SEARCHD_xxx constants in Client).
 }
 
+type Options struct {
+	Host string
+	Port int
+	Socket string
+	SqlPort int
+	SqlSocket string
+	RetryCount int
+	RetryDelay int
+	Timeout time.Duration
+	Offset int
+	Limit int
+	MaxMatches int
+	Cutoff int
+	MaxQueryTime int
+	SelectStr string
+	MatchMode int
+	RankingMode int
+	Rankexpr string
+	SortMode int
+	SortBy string
+	MinId uint64
+	MaxId uint64
+	LatitudeAttr string
+	LongitudeAttr string
+	Latitude float32
+	Longitude float32
+	GroupBy string
+	GroupFunc int
+	GroupSort string
+	GroupDistinct string
+}
+
 type Client struct {
+	Options *Options
 	host   string
 	port   int
 	socket string // Unix socket
@@ -225,15 +258,9 @@ type Client struct {
 	where   string
 }
 
-func NewClient() (sc *Client) {
+// Do not set socket/host/port
+func defaultClient() (sc *Client) {
 	sc = new(Client)
-	if Socket != "" {
-		sc.socket = Socket
-	} else {
-		sc.host = Host
-		sc.port = Port
-	}
-
 	sc.limit = Limit
 	sc.mode = Mode
 	sc.sort = Sort
@@ -243,6 +270,62 @@ func NewClient() (sc *Client) {
 	sc.SetConnectTimeout(Timeout)
 	sc.ranker = Ranker
 	sc.selectStr = SelectStr
+	
+	return
+}
+
+func NewClient(opts ...*Options) (sc *Client) {
+	// if have *Options param, then use it
+	if len(opts) > 0 {
+		o := opts[0]
+		sc = new(Client)
+		
+		sc.host = o.Host
+		sc.port = o.Port
+		sc.socket = o.Socket
+		// if set opts.SqlPort/SqlSocket, then just ignored opts.Port/Socket
+		if o.SqlPort > 0 {
+			sc.port = o.SqlPort
+		}
+		if o.SqlSocket != "" {
+			sc.socket = o.SqlSocket
+		}
+		sc.retryCount = o.RetryCount
+		sc.retryDelay = o.RetryDelay
+		sc.timeout = o.Timeout
+		sc.offset = o.Offset
+		sc.limit = o.Limit
+		sc.maxMatches = o.MaxMatches
+		sc.cutoff = o.Cutoff
+		sc.maxQueryTime = o.MaxQueryTime
+		sc.selectStr = o.SelectStr
+		sc.mode = o.MatchMode
+		sc.ranker = o.RankingMode
+		sc.rankexpr = o.Rankexpr
+		sc.sort = o.SortMode
+		sc.sortBy = o.SortBy
+		sc.minId = o.MinId
+		sc.maxId = o.MaxId
+		sc.latitudeAttr = o.LatitudeAttr
+		sc.longitudeAttr = o.LongitudeAttr
+		sc.latitude = o.Latitude
+		sc.longitude = o.Longitude
+		sc.groupBy = o.GroupBy
+		sc.groupFunc = o.GroupFunc
+		sc.groupSort = o.GroupSort
+		sc.groupDistinct = o.GroupDistinct
+
+		return
+	}
+	
+	sc = defaultClient()
+	
+	if Socket != "" {
+		sc.socket = Socket
+	} else {
+		sc.host = Host
+		sc.port = Port
+	}
 
 	return
 }
@@ -436,18 +519,27 @@ func (sc *Client) MatchMode(mode int) *Client {
 	return sc
 }
 
-func (sc *Client) SetRankingMode(ranker int, rankexpr string) error {
+func (sc *Client) SetRankingMode(ranker int, rankexpr ...string) error {
 	if ranker < 0 || ranker > SPH_RANK_TOTAL {
 		sc.err = fmt.Errorf("SetRankingMode > unknown ranker value; use one of the SPH_RANK_xxx constants: %d", ranker)
 		return sc.err
 	}
-
+	
 	sc.ranker = ranker
-	sc.rankexpr = rankexpr
+	
+	if len(rankexpr) > 0 {
+		if ranker != SPH_RANK_EXPR {
+			sc.err = fmt.Errorf("SetRankingMode > rankexpr must used with SPH_RANK_EXPR! ranker: %d  rankexpr: %s", ranker, rankexpr)
+			return sc.err
+		}
+		
+		sc.rankexpr = rankexpr[0]
+	}
+	
 	return nil
 }
-func (sc *Client) RankingMode(ranker int, rankexpr string) *Client {
-	sc.err = sc.SetRankingMode(ranker, rankexpr)
+func (sc *Client) RankingMode(ranker int, rankexpr ...string) *Client {
+	sc.err = sc.SetRankingMode(ranker, rankexpr...)
 	return sc
 }
 

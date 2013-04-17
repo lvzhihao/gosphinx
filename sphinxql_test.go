@@ -23,7 +23,7 @@ type rtData struct {
 func TestTruncate(t *testing.T) {
 	fmt.Println("Running Truncate() test ...")
 
-	sqlc := NewSQLClient().Server(host, sqlPort)
+	sqlc := NewSqlClient().Server(host, sqlPort)
 	if err := sqlc.TruncateRT(rtIndex); err != nil {
 		t.Fatalf("TestTruncate > %v\n", err)
 	}
@@ -32,7 +32,7 @@ func TestTruncate(t *testing.T) {
 func TestInsert(t *testing.T) {
 	fmt.Println("Running Insert() test...")
 
-	sqlc := NewSQLClient().Server(host, sqlPort).Index(rtIndex)
+	sqlc := NewSqlClient().Server(host, sqlPort).Index(rtIndex)
 	for i := 1; i <= amount; i++ {
 		rtd := rtData{i, "test title", "test content", i * 100}
 		if err := sqlc.Insert(&rtd); err != nil {
@@ -53,7 +53,7 @@ func TestInsert(t *testing.T) {
 
 func TestReplace(t *testing.T) {
 	fmt.Println("Running Replace() test...")
-	sqlc := NewSQLClient().Server(host, sqlPort).Index(rtIndex)
+	sqlc := NewSqlClient().Server(host, sqlPort).Index(rtIndex)
 	sqlc.columns = []string{"Id", "Title", "Group_id"}
 
 	testId := 1
@@ -90,7 +90,7 @@ func TestUpdate(t *testing.T) {
 	}
 
 	// Update DocId(2)
-	sqlc := NewSQLClient().Server(host, sqlPort).Index(rtIndex).Columns("Group_id")
+	sqlc := NewSqlClient().Server(host, sqlPort).Index(rtIndex).Columns("Group_id")
 	rowsAffected, err := sqlc.Update(&data)
 	if err != nil {
 		t.Fatalf("TestUpdate > %v\n", err)
@@ -114,7 +114,7 @@ func TestUpdate(t *testing.T) {
 func TestDelete(t *testing.T) {
 	fmt.Println("Running Delete() test...")
 
-	sqlc := NewSQLClient().Server(host, sqlPort).Index(rtIndex)
+	sqlc := NewSqlClient().Server(host, sqlPort).Index(rtIndex)
 	// Delete the last one.
 	rowsAffected, err := sqlc.Delete(amount)
 	if err != nil {
@@ -135,7 +135,7 @@ func TestDelete(t *testing.T) {
 	}
 
 	// Test batch delete
-	sqlc = NewSQLClient().Server(host, sqlPort).Index(rtIndex)
+	sqlc = NewSqlClient().Server(host, sqlPort).Index(rtIndex)
 	// Delete 3,4
 	rowsAffected, err = sqlc.Delete([]int{amount - 1, amount - 2})
 	if err != nil {
@@ -171,23 +171,23 @@ mysql> select * from rt;
 func TestRTCommand(t *testing.T) {
 	fmt.Println("Running RT commands test ...")
 
-	sqlc := NewSQLClient().Server(host, sqlPort)
+	sqlc := NewSqlClient().Server(host, sqlPort)
 	// ATTACH currently supports empty target RT indexes only, so truncate it first.
 	if err := sqlc.TruncateRT(rtIndex); err != nil {
 		t.Fatalf("Test TruncateRT > %v\n", err)
 	}
 
-	sqlc = NewSQLClient().Server(host, sqlPort)
+	sqlc = NewSqlClient().Server(host, sqlPort)
 	if err := sqlc.AttachToRT(index, rtIndex); err != nil {
 		t.Fatalf("Test AttachToRT > %v\n", err)
 	}
 
-	sqlc = NewSQLClient().Server(host, sqlPort)
+	sqlc = NewSqlClient().Server(host, sqlPort)
 	if err := sqlc.FlushRT(rtIndex); err != nil {
 		t.Fatalf("Test FlushRT > %v\n", err)
 	}
 
-	sqlc = NewSQLClient().Server(host, sqlPort)
+	sqlc = NewSqlClient().Server(host, sqlPort)
 	if err := sqlc.Optimize(rtIndex); err != nil {
 		t.Fatalf("Test Optimize > %v\n", err)
 	}

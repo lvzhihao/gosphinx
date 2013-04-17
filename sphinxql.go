@@ -1,11 +1,11 @@
 package gosphinx
 
 import (
+	_ "github.com/Go-SQL-Driver/MySQL"
 	"bytes"
 	"database/sql"
 	"errors"
 	"fmt"
-	_ "github.com/Go-SQL-Driver/MySQL"
 	"io"
 	"reflect"
 	"strconv"
@@ -16,24 +16,15 @@ const (
 	DefaultPK = "Id"
 )
 
-func NewSQLClient() (sc *Client) {
-	sc = new(Client)
-	if SQLSocket != "" {
-		sc.socket = SQLSocket
+func NewSqlClient() (sc *Client) {
+	sc = defaultClient()
+	
+	if SqlSocket != "" {
+		sc.socket = SqlSocket
 	} else {
 		sc.host = Host
-		sc.port = SQLPort
+		sc.port = SqlPort
 	}
-
-	sc.limit = Limit
-	sc.mode = Mode
-	sc.sort = Sort
-	sc.groupFunc = GroupFunc
-	sc.groupSort = GroupSort
-	sc.maxMatches = MaxMatches
-	sc.SetConnectTimeout(Timeout)
-	sc.ranker = Ranker
-	sc.selectStr = SelectStr
 
 	return
 }
