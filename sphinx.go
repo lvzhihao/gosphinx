@@ -1401,13 +1401,11 @@ func (sc *Client) connect() (err error) {
 	if sc.socket != "" {
 		if sc.conn, err = net.DialTimeout("unix", sc.socket, sc.timeout); err != nil {
 			sc.connerror = true
-			//LogConnError(err)
 			return fmt.Errorf("connect() net.DialTimeout(%d ms) > %v", sc.timeout/time.Millisecond, err)
 		}
 	} else if sc.port > 0 {
 		if sc.conn, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", sc.host, sc.port), sc.timeout); err != nil {
 			sc.connerror = true
-			//LogConnError(err)
 			return fmt.Errorf("connect() net.DialTimeout(%d ms) > %v", sc.timeout/time.Millisecond, err)
 		}
 	} else {

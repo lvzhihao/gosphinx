@@ -106,22 +106,17 @@ func (sc *Client) Init(obj interface{}) (err error) {
 		}
 	}
 
-	// "MyType" to "my_type"
-	if sc.index == "" {
-		fullTypeName := sc.val.Type().String() // Such as "main.MyType"
-		subStrs := strings.Split(fullTypeName, ".")
-		sc.index = subStrs[len(subStrs)-1]   // "MyType"
-		sc.index = CamelToSep(sc.index, '_') // "my_type"
-		fmt.Println("sc.index:", sc.index)
-	}
-
 	return
 }
 
 func (sc *Client) Execute(sqlStr string) (result sql.Result, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			LogError("Recovered from Execute(): ", r)
+			/*
+			 Note: change fmt.Println in recover() to your log func! Such as:
+			 LogError("Recovered from Execute(): ", r)
+			*/
+			fmt.Println("Recovered from Execute(): ", r)
 		}
 	}()
 
@@ -367,27 +362,6 @@ func (sc *Client) Optimize(rtIndex string) error {
 }
 
 /// Util funcs
-
-// 'AbcDefGhi' to 'abc_def_ghi'
-func CamelToSep(ori string, sep byte) string {
-	var bs []byte
-
-	// If the first char is uppercase
-	first := ori[0]
-	if first >= 65 && first <= 90 {
-		first += 32
-	}
-	bs = []byte{first}
-
-	for i := 1; i < len(ori); i++ {
-		if ori[i] >= 65 && ori[i] <= 90 {
-			bs = append(bs, sep, ori[i]+32)
-		} else {
-			bs = append(bs, ori[i])
-		}
-	}
-	return string(bs)
-}
 
 func GetColVals(val reflect.Value, cols []string) (values []string, err error) {
 	typ := val.Type()

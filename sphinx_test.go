@@ -8,7 +8,7 @@ import (
 var (
 	sc *Client
 	//host = "/var/run/searchd.sock"
-	host  = "192.168.1.234" //"localhost"
+	host  = "localhost"
 	port  = 9312 // If set host to unix path, then just ignore port.
 	index = "test1"
 	words = "test"
