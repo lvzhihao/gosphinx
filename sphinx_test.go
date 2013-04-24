@@ -9,7 +9,6 @@ var (
 	sc *Client
 	//host = "/var/run/searchd.sock"
 	host  = "localhost"
-	port  = 9312 // If set host to unix path, then just ignore port.
 	index = "test1"
 	words = "test"
 )
@@ -17,7 +16,7 @@ var (
 func TestParallelQuery(t *testing.T) {
 	fmt.Println("Running parallel Query() test...")
 	f := func(i int) {
-		scParallel := NewClient().Server(host, port)
+		scParallel := NewClient()
 		if err := scParallel.Open(); err != nil {
 			t.Fatalf("Parallel %d > %v\n", i, err)
 		}
@@ -51,7 +50,14 @@ func TestParallelQuery(t *testing.T) {
 
 func TestInitClient(t *testing.T) {
 	fmt.Println("Init sphinx client ...")
-	sc = NewClient().Server(host, port).ConnectTimeout(5000)
+
+	opts := &Options{
+		Host:    host,
+		Port:    9312,
+		Timeout: 5000,
+	}
+
+	sc = NewClient(opts)
 	if err := sc.Error(); err != nil {
 		t.Fatalf("Init sphinx client > %v\n", err)
 	}
@@ -230,15 +236,14 @@ func TestBuildKeywords(t *testing.T) {
 }
 
 func TestGeoDist(t *testing.T) {
-	sc = NewClient().Server(host, port)
-
 	latitude := DegreeToRadian(29.862991)
 	longitude := DegreeToRadian(121.545471)
 	var radius float32 = 5000.0 // 5Kms
 
-	sc.GeoAnchor("latitude", "longitude", latitude, longitude)
-	sc.SortMode(SPH_SORT_EXTENDED, "@geodist asc")
-	sc.FilterFloatRange("@geodist", 0.0, radius, false)
+	sc = NewClient().SetServer(host, 0)
+	sc.SetGeoAnchor("latitude", "longitude", latitude, longitude)
+	sc.SetSortMode(SPH_SORT_EXTENDED, "@geodist asc")
+	sc.SetFilterFloatRange("@geodist", 0.0, radius, false)
 	if err := sc.Error(); err != nil {
 		t.Fatalf("GeoDist > %v\n", err)
 	}

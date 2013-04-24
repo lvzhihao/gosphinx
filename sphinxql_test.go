@@ -6,7 +6,6 @@ import (
 )
 
 var (
-	sqlPort = 9306
 	rtIndex = "rt"
 	amount  = 5
 )
@@ -23,8 +22,7 @@ type rtData struct {
 func TestTruncate(t *testing.T) {
 	fmt.Println("Running Truncate() test ...")
 
-	sqlc := NewSqlClient().Server(host, sqlPort)
-	if err := sqlc.TruncateRT(rtIndex); err != nil {
+	if err := NewClient().SetSqlServer(host, 0).TruncateRT(rtIndex); err != nil {
 		t.Fatalf("TestTruncate > %v\n", err)
 	}
 }
@@ -32,16 +30,14 @@ func TestTruncate(t *testing.T) {
 func TestInsert(t *testing.T) {
 	fmt.Println("Running Insert() test...")
 
-	sqlc := NewSqlClient().Server(host, sqlPort).Index(rtIndex)
 	for i := 1; i <= amount; i++ {
 		rtd := rtData{i, "test title", "test content", i * 100}
-		if err := sqlc.Insert(&rtd); err != nil {
+		if err := NewClient().SetIndex(rtIndex).Insert(&rtd); err != nil {
 			t.Fatalf("TestInsert > %v\n", err)
 		}
 	}
 
-	sc := NewClient().Server(host, port)
-	res, err := sc.Query("test", rtIndex, "test rt insert")
+	res, err := NewClient().Query("test", rtIndex, "test rt insert")
 	if err != nil {
 		t.Fatalf("TestInsert > %v\n", err)
 	}
@@ -53,8 +49,6 @@ func TestInsert(t *testing.T) {
 
 func TestReplace(t *testing.T) {
 	fmt.Println("Running Replace() test...")
-	sqlc := NewSqlClient().Server(host, sqlPort).Index(rtIndex)
-	sqlc.columns = []string{"Id", "Title", "Group_id"}
 
 	testId := 1
 	data := rtData{
@@ -63,12 +57,13 @@ func TestReplace(t *testing.T) {
 		Content:  "replaced content",
 		Group_id: 1000,
 	}
+
+	sqlc := NewClient().SetIndex(rtIndex).SetColumns("Id", "Title", "Group_id")
 	if err := sqlc.Replace(&data); err != nil {
 		t.Fatalf("TestReplace > %v\n", err)
 	}
 
-	sc := NewClient().Server(host, port)
-	res, err := sc.Query("replaced", rtIndex, "test rt replace")
+	res, err := NewClient().Query("replaced", rtIndex, "test rt replace")
 	if err != nil {
 		t.Fatalf("TestReplace > %v\n", err)
 	}
@@ -90,8 +85,7 @@ func TestUpdate(t *testing.T) {
 	}
 
 	// Update DocId(2)
-	sqlc := NewSqlClient().Server(host, sqlPort).Index(rtIndex).Columns("Group_id")
-	rowsAffected, err := sqlc.Update(&data)
+	rowsAffected, err := NewClient().SetIndex(rtIndex).SetColumns("Group_id").Update(&data)
 	if err != nil {
 		t.Fatalf("TestUpdate > %v\n", err)
 	}
@@ -100,7 +94,7 @@ func TestUpdate(t *testing.T) {
 		t.Fatalf("TestUpdate > rowsAffected: %d\n", rowsAffected)
 	}
 
-	sc := NewClient().Server(host, port).Filter("Group_id", []uint64{uint64(testGroupId)}, false)
+	sc := NewClient().SetFilter("Group_id", []uint64{uint64(testGroupId)}, false)
 	res, err := sc.Query("", rtIndex, "test rt update")
 	if err != nil {
 		t.Fatalf("TestUpdate > %v\n", err)
@@ -114,9 +108,8 @@ func TestUpdate(t *testing.T) {
 func TestDelete(t *testing.T) {
 	fmt.Println("Running Delete() test...")
 
-	sqlc := NewSqlClient().Server(host, sqlPort).Index(rtIndex)
 	// Delete the last one.
-	rowsAffected, err := sqlc.Delete(amount)
+	rowsAffected, err := NewClient().SetIndex(rtIndex).Delete(amount)
 	if err != nil {
 		t.Fatalf("TestDelete > %v\n", err)
 	}
@@ -124,8 +117,7 @@ func TestDelete(t *testing.T) {
 		t.Fatalf("TestDelete > rowsAffected: %d\n", rowsAffected)
 	}
 
-	sc := NewClient().Server(host, port)
-	res, err := sc.Query("", rtIndex, "test rt delete")
+	res, err := NewClient().Query("", rtIndex, "test rt delete")
 	if err != nil {
 		t.Fatalf("TestDelete > %v\n", err)
 	}
@@ -135,9 +127,9 @@ func TestDelete(t *testing.T) {
 	}
 
 	// Test batch delete
-	sqlc = NewSqlClient().Server(host, sqlPort).Index(rtIndex)
+
 	// Delete 3,4
-	rowsAffected, err = sqlc.Delete([]int{amount - 1, amount - 2})
+	rowsAffected, err = NewClient().SetIndex(rtIndex).Delete([]int{amount - 1, amount - 2})
 	if err != nil {
 		t.Fatalf("TestDelete > %v\n", err)
 	}
@@ -145,8 +137,7 @@ func TestDelete(t *testing.T) {
 		t.Fatalf("TestDelete > rowsAffected: %d\n", rowsAffected)
 	}
 
-	sc = NewClient().Server(host, port)
-	res, err = sc.Query("", rtIndex, "test rt delete")
+	res, err = NewClient().Query("", rtIndex, "test rt delete")
 	if err != nil {
 		t.Fatalf("TestDelete > %v\n", err)
 	}
@@ -171,24 +162,20 @@ mysql> select * from rt;
 func TestRTCommand(t *testing.T) {
 	fmt.Println("Running RT commands test ...")
 
-	sqlc := NewSqlClient().Server(host, sqlPort)
 	// ATTACH currently supports empty target RT indexes only, so truncate it first.
-	if err := sqlc.TruncateRT(rtIndex); err != nil {
+	if err := NewClient().TruncateRT(rtIndex); err != nil {
 		t.Fatalf("Test TruncateRT > %v\n", err)
 	}
 
-	sqlc = NewSqlClient().Server(host, sqlPort)
-	if err := sqlc.AttachToRT(index, rtIndex); err != nil {
+	if err := NewClient().AttachToRT(index, rtIndex); err != nil {
 		t.Fatalf("Test AttachToRT > %v\n", err)
 	}
 
-	sqlc = NewSqlClient().Server(host, sqlPort)
-	if err := sqlc.FlushRT(rtIndex); err != nil {
+	if err := NewClient().FlushRT(rtIndex); err != nil {
 		t.Fatalf("Test FlushRT > %v\n", err)
 	}
 
-	sqlc = NewSqlClient().Server(host, sqlPort)
-	if err := sqlc.Optimize(rtIndex); err != nil {
+	if err := NewClient().Optimize(rtIndex); err != nil {
 		t.Fatalf("Test Optimize > %v\n", err)
 	}
 }

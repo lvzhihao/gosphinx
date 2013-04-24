@@ -1,11 +1,11 @@
 package gosphinx
 
 import (
-	_ "github.com/Go-SQL-Driver/MySQL"
 	"bytes"
 	"database/sql"
 	"errors"
 	"fmt"
+	_ "github.com/Go-SQL-Driver/MySQL"
 	"io"
 	"reflect"
 	"strconv"
@@ -16,70 +16,43 @@ const (
 	DefaultPK = "Id"
 )
 
-func NewSqlClient() (sc *Client) {
-	sc = defaultClient()
-	
-	if SqlSocket != "" {
-		sc.socket = SqlSocket
-	} else {
-		sc.host = Host
-		sc.port = SqlPort
-	}
-
-	return
-}
-
-func (sc *Client) SetIndex(index string) error {
+func (sc *Client) SetIndex(index string) *Client {
 	if index == "" {
 		sc.err = errors.New("SetIndex > Index name is empty!")
-		return sc.err
+		return sc
 	}
 
-	sc.index = index
-	return nil
-}
-
-// For chaining
-func (sc *Client) Index(index string) *Client {
-	sc.err = sc.SetIndex(index)
+	sc.Index = index
 	return sc
 }
 
-func (sc *Client) SetColumns(columns ...string) error {
+func (sc *Client) SetColumns(columns ...string) *Client {
 	if len(columns) == 0 {
 		sc.err = errors.New("SetColumns > Columns is empty!")
-		return sc.err
+		return sc
 	}
 
-	sc.columns = columns
-	return nil
-}
-func (sc *Client) Columns(columns ...string) *Client {
-	sc.err = sc.SetColumns(columns...)
+	sc.Columns = columns
 	return sc
 }
 
-func (sc *Client) SetWhere(where string) error {
+func (sc *Client) SetWhere(where string) *Client {
 	if where == "" {
 		sc.err = errors.New("SetWhere > where is empty!")
-		return sc.err
+		return sc
 	}
 
-	sc.where = where
-	return nil
-}
-func (sc *Client) Where(where string) *Client {
-	sc.err = sc.SetWhere(where)
+	sc.Where = where
 	return sc
 }
 
 func (sc *Client) GetDb() (err error) {
 	var addr string
-	if sc.socket != "" {
-		addr = "unix(" + sc.socket + ")"
+	if sc.SqlSocket != "" {
+		addr = "unix(" + sc.SqlSocket + ")"
 	} else {
 		// Already get default host and port in NewSQLClient()
-		addr = "tcp(" + sc.host + ":" + strconv.Itoa(sc.port) + ")"
+		addr = "tcp(" + sc.Host + ":" + strconv.Itoa(sc.SqlPort) + ")"
 	}
 
 	if sc.DB, err = sql.Open("mysql", addr+"/"); err != nil {
@@ -110,16 +83,6 @@ func (sc *Client) Init(obj interface{}) (err error) {
 }
 
 func (sc *Client) Execute(sqlStr string) (result sql.Result, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			/*
-			 Note: change fmt.Println in recover() to your log func! Such as:
-			 LogError("Recovered from Execute(): ", r)
-			*/
-			fmt.Println("Recovered from Execute(): ", r)
-		}
-	}()
-
 	// Init sql.DB
 	if sc.DB == nil {
 		if err = sc.GetDb(); err != nil {
@@ -158,8 +121,8 @@ func (sc *Client) insert(obj interface{}, doReplace bool) (err error) {
 	}
 
 	var colVals []string
-	// If not set sc.columns, then use all fields as columns
-	if len(sc.columns) == 0 {
+	// If not set sc.Columns, then use all fields as columns
+	if len(sc.Columns) == 0 {
 		if sc.val.Kind() == reflect.Struct {
 			var appendField func(*[]string, *[]string, reflect.Value) error
 			appendField = func(strs *[]string, vals *[]string, val reflect.Value) (err error) {
@@ -187,12 +150,12 @@ func (sc *Client) insert(obj interface{}, doReplace bool) (err error) {
 				return nil
 			}
 
-			if err = appendField(&sc.columns, &colVals, sc.val); err != nil {
+			if err = appendField(&sc.Columns, &colVals, sc.val); err != nil {
 				return
 			}
 		} else {
 			// if not struct，then it must just one ‘id’ field, "ID column must be present in all cases."
-			sc.columns = []string{DefaultPK}
+			sc.Columns = []string{DefaultPK}
 			s, err := GetValQuoteStr(sc.val)
 			if err != nil {
 				return fmt.Errorf("Insert > %v", err)
@@ -200,7 +163,7 @@ func (sc *Client) insert(obj interface{}, doReplace bool) (err error) {
 			colVals = []string{s}
 		}
 
-	} else if colVals, err = GetColVals(sc.val, sc.columns); err != nil {
+	} else if colVals, err = GetColVals(sc.val, sc.Columns); err != nil {
 		return
 	}
 
@@ -210,7 +173,7 @@ func (sc *Client) insert(obj interface{}, doReplace bool) (err error) {
 	} else {
 		sqlStr = "INSERT"
 	}
-	sqlStr += fmt.Sprintf(" INTO %s (%s) VALUES (%s)", sc.index, strings.Join(sc.columns, ","), strings.Join(colVals, ","))
+	sqlStr += fmt.Sprintf(" INTO %s (%s) VALUES (%s)", sc.Index, strings.Join(sc.Columns, ","), strings.Join(colVals, ","))
 
 	//fmt.Printf("Insert sql: %s\n", sqlStr)
 	if _, err = sc.Execute(sqlStr); err != nil {
@@ -221,7 +184,7 @@ func (sc *Client) insert(obj interface{}, doReplace bool) (err error) {
 }
 
 func (sc *Client) Insert(obj interface{}) error {
-	// false means NOT do REPLACE 
+	// false means NOT do REPLACE
 	return sc.insert(obj, false)
 }
 
@@ -236,17 +199,17 @@ func (sc *Client) Update(obj interface{}) (rowsAffected int, err error) {
 		return -1, fmt.Errorf("Update > %v", err)
 	}
 	// Must set 'Columns'
-	if len(sc.columns) == 0 {
+	if len(sc.Columns) == 0 {
 		return -1, fmt.Errorf("Update > columns is not set!")
 	}
 
-	colVals, err := GetColVals(sc.val, sc.columns)
+	colVals, err := GetColVals(sc.val, sc.Columns)
 	if err != nil {
 		return -1, fmt.Errorf("Update > %v", err)
 	}
 
 	var updateStr string
-	for i, col := range sc.columns {
+	for i, col := range sc.Columns {
 		if colVals[i][0] == '\'' {
 			return -1, fmt.Errorf("Update > Do not support update string field: %v", colVals)
 		}
@@ -255,7 +218,7 @@ func (sc *Client) Update(obj interface{}) (rowsAffected int, err error) {
 	updateStr = updateStr[:len(updateStr)-1]
 
 	// If not set "where", then set WHERE clause to "id=..."
-	if sc.where == "" {
+	if sc.Where == "" {
 		if sc.val.Kind() != reflect.Struct {
 			return -1, fmt.Errorf("Update > If not set WHERE clause, then must be a struct object with Id field: %v", obj)
 		}
@@ -264,10 +227,10 @@ func (sc *Client) Update(obj interface{}) (rowsAffected int, err error) {
 			return -1, fmt.Errorf("Update > Invalid Id field: %v", obj)
 		}
 
-		sc.where = DefaultPK + "=" + strconv.Itoa(int(idVal.Int()))
+		sc.Where = DefaultPK + "=" + strconv.Itoa(int(idVal.Int()))
 	}
 
-	sqlStr := fmt.Sprintf("UPDATE %s SET %s WHERE %s", sc.index, updateStr, sc.where)
+	sqlStr := fmt.Sprintf("UPDATE %s SET %s WHERE %s", sc.Index, updateStr, sc.Where)
 	//fmt.Printf("Update sql: %s\n", sqlStr)
 
 	rowsAffected, err = sc.ExecuteReturnRowsAffected(sqlStr)
@@ -284,7 +247,7 @@ func (sc *Client) Delete(obj interface{}) (rowsAffected int, err error) {
 		return -1, fmt.Errorf("Delete> %v", err)
 	}
 
-	sqlStr := "DELETE FROM " + sc.index + " WHERE id "
+	sqlStr := "DELETE FROM " + sc.Index + " WHERE id "
 	switch v := obj.(type) {
 	case int:
 		if v <= 0 {

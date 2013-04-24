@@ -14,25 +14,6 @@ import (
 	"time"
 )
 
-// All these variables will be used in NewClient() as default values.
-// You can change them, so that you do not need to call Set***() every time.
-var (
-	Host       = "localhost"
-	Port       = 9312
-	SqlPort    = 9306
-	Socket     = ""
-	SqlSocket  = ""
-	Limit      = 20
-	Mode       = SPH_MATCH_EXTENDED // "When you use one of the legacy modes, Sphinx internally converts the query to the appropriate new syntax and chooses the appropriate ranker."
-	Sort       = SPH_SORT_RELEVANCE
-	GroupFunc  = SPH_GROUPBY_DAY
-	GroupSort  = "@group desc"
-	MaxMatches = 1000
-	Timeout    = 1000
-	Ranker     = SPH_RANK_PROXIMITY_BM25
-	SelectStr  = "*"
-)
-
 /* searchd command versions */
 const (
 	VER_MAJOR_PROTO        = 0x1
@@ -160,13 +141,13 @@ type WordInfo struct {
 }
 
 type Result struct {
-	Fields     []string         // Full-text field namess.
-	AttrNames  []string         // Attribute names.
-	AttrTypes  []int            // Attribute types (refer to SPH_ATTR_xxx constants in Client).
+	Fields     []string   // Full-text field namess.
+	AttrNames  []string   // Attribute names.
+	AttrTypes  []int      // Attribute types (refer to SPH_ATTR_xxx constants in Client).
 	Matches    []Match    // Retrieved matches.
-	Total      int              // Total matches in this result set.
-	TotalFound int              // Total matches found in the index(es).
-	Time       float32          // Elapsed time (as reported by searchd), in seconds.
+	Total      int        // Total matches in this result set.
+	TotalFound int        // Total matches found in the index(es).
+	Time       float32    // Elapsed time (as reported by searchd), in seconds.
 	Words      []WordInfo // Per-word statistics.
 
 	Warning string
@@ -175,159 +156,84 @@ type Result struct {
 }
 
 type Options struct {
-	Host string
-	Port int
-	Socket string
-	SqlPort int
-	SqlSocket string
-	RetryCount int
-	RetryDelay int
-	Timeout time.Duration
-	Offset int
-	Limit int
-	MaxMatches int
-	Cutoff int
-	MaxQueryTime int
-	SelectStr string
-	MatchMode int
-	RankingMode int
-	Rankexpr string
-	SortMode int
-	SortBy string
-	MinId uint64
-	MaxId uint64
-	LatitudeAttr string
+	Host          string
+	Port          int
+	Socket        string // Unix socket
+	SqlPort       int
+	SqlSocket     string
+	RetryCount    int
+	RetryDelay    int
+	Timeout       int
+	Offset        int // how many records to seek from result-set start
+	Limit         int // how many records to return from result-set starting at offset (default is 20)
+	MaxMatches    int // max matches to retrieve
+	Cutoff        int // cutoff to stop searching at
+	MaxQueryTime  int
+	Select        string // select-list (attributes or expressions, with optional aliases)
+	MatchMode     int    // query matching mode (default is SPH_MATCH_ALL)
+	RankMode      int
+	RankExpr      string // ranking expression for SPH_RANK_EXPR
+	SortMode      int    // match sorting mode (default is SPH_SORT_RELEVANCE)
+	SortBy        string // attribute to sort by (defualt is "")
+	MinId         uint64 // min ID to match (default is 0, which means no limit)
+	MaxId         uint64 // max ID to match (default is 0, which means no limit)
+	LatitudeAttr  string
 	LongitudeAttr string
-	Latitude float32
-	Longitude float32
-	GroupBy string
-	GroupFunc int
-	GroupSort string
-	GroupDistinct string
+	Latitude      float32
+	Longitude     float32
+	GroupBy       string // group-by attribute name
+	GroupFunc     int    // group-by function (to pre-process group-by attribute value with)
+	GroupSort     string // group-by sorting clause (to sort groups in result set with)
+	GroupDistinct string // group-by count-distinct attribute
+
+	// for sphinxql
+	Index   string // index name for sphinxql query.
+	Columns []string
+	Where   string
 }
 
 type Client struct {
-	Options *Options
-	host   string
-	port   int
-	socket string // Unix socket
-	conn   net.Conn
-
-	offset        int    // how many records to seek from result-set start
-	limit         int    // how many records to return from result-set starting at offset (default is 20)
-	mode          int    // query matching mode (default is SPH_MATCH_ALL)
-	weights       []int  // per-field weights (default is 1 for all fields)
-	sort          int    // match sorting mode (default is SPH_SORT_RELEVANCE)
-	sortBy        string // attribute to sort by (defualt is "")
-	minId         uint64 // min ID to match (default is 0, which means no limit)
-	maxId         uint64 // max ID to match (default is 0, which means no limit)
-	filters       []filter
-	groupBy       string // group-by attribute name
-	groupFunc     int    // group-by function (to pre-process group-by attribute value with)
-	groupSort     string // group-by sorting clause (to sort groups in result set with)
-	groupDistinct string // group-by count-distinct attribute
-	maxMatches    int    // max matches to retrieve
-	cutoff        int    // cutoff to stop searching at
-	retryCount    int
-	retryDelay    int
-	latitudeAttr  string
-	longitudeAttr string
-	latitude      float32
-	longitude     float32
+	*Options
+	conn net.Conn
 
 	warning   string
 	err       error
 	connerror bool // connection error vs remote error flag
-	timeout   time.Duration
 
-	reqs [][]byte // requests array for multi-query
+	weights []int // per-field weights (default is 1 for all fields)
+	filters []filter
+	reqs    [][]byte // requests array for multi-query
 
 	indexWeights map[string]int
-	ranker       int    // ranking mode
-	rankexpr     string // ranking expression for SPH_RANK_EXPR
-	maxQueryTime int
 	fieldWeights map[string]int
 	overrides    map[string]override
-	selectStr    string // select-list (attributes or expressions, with optional aliases)
 
 	// For sphinxql
-	DB      *sql.DB       // Capitalize, so that can "defer sc.Db.Close()"
-	val     reflect.Value // object parameter's reflect value
-	index   string        // index name for sphinxql query.
-	columns []string
-	where   string
+	DB  *sql.DB       // Capitalize, so that can "defer sc.Db.Close()"
+	val reflect.Value // object parameter's reflect value
 }
 
-// Do not set socket/host/port
-func defaultClient() (sc *Client) {
-	sc = new(Client)
-	sc.limit = Limit
-	sc.mode = Mode
-	sc.sort = Sort
-	sc.groupFunc = GroupFunc
-	sc.groupSort = GroupSort
-	sc.maxMatches = MaxMatches
-	sc.SetConnectTimeout(Timeout)
-	sc.ranker = Ranker
-	sc.selectStr = SelectStr
-	
-	return
+// You can change it, so that you do not need to call Set***() every time.
+var DefaultOptions = &Options{
+	Host:       "localhost",
+	Port:       9312,
+	SqlPort:    9306,
+	Limit:      20,
+	MatchMode:  SPH_MATCH_EXTENDED, // "When you use one of the legacy modes, Sphinx internally converts the query to the appropriate new syntax and chooses the appropriate ranker."
+	SortMode:   SPH_SORT_RELEVANCE,
+	GroupFunc:  SPH_GROUPBY_DAY,
+	GroupSort:  "@group desc",
+	MaxMatches: 1000,
+	Timeout:    1000,
+	RankMode:   SPH_RANK_PROXIMITY_BM25,
+	Select:     "*",
 }
 
 func NewClient(opts ...*Options) (sc *Client) {
-	// if have *Options param, then use it
-	if len(opts) > 0 {
-		o := opts[0]
-		sc = new(Client)
-		
-		sc.host = o.Host
-		sc.port = o.Port
-		sc.socket = o.Socket
-		// if set opts.SqlPort/SqlSocket, then just ignored opts.Port/Socket
-		if o.SqlPort > 0 {
-			sc.port = o.SqlPort
-		}
-		if o.SqlSocket != "" {
-			sc.socket = o.SqlSocket
-		}
-		sc.retryCount = o.RetryCount
-		sc.retryDelay = o.RetryDelay
-		sc.timeout = o.Timeout
-		sc.offset = o.Offset
-		sc.limit = o.Limit
-		sc.maxMatches = o.MaxMatches
-		sc.cutoff = o.Cutoff
-		sc.maxQueryTime = o.MaxQueryTime
-		sc.selectStr = o.SelectStr
-		sc.mode = o.MatchMode
-		sc.ranker = o.RankingMode
-		sc.rankexpr = o.Rankexpr
-		sc.sort = o.SortMode
-		sc.sortBy = o.SortBy
-		sc.minId = o.MinId
-		sc.maxId = o.MaxId
-		sc.latitudeAttr = o.LatitudeAttr
-		sc.longitudeAttr = o.LongitudeAttr
-		sc.latitude = o.Latitude
-		sc.longitude = o.Longitude
-		sc.groupBy = o.GroupBy
-		sc.groupFunc = o.GroupFunc
-		sc.groupSort = o.GroupSort
-		sc.groupDistinct = o.GroupDistinct
-
-		return
+	if len(opts) > 1 {
+		return &Client{Options: opts[0]}
 	}
-	
-	sc = defaultClient()
-	
-	if Socket != "" {
-		sc.socket = Socket
-	} else {
-		sc.host = Host
-		sc.port = Port
-	}
-
-	return
+	return &Client{Options: DefaultOptions}
 }
 
 /***** General API functions *****/
@@ -345,69 +251,87 @@ func (sc *Client) GetLastWarning() string {
 	return sc.warning
 }
 
-// Note: this func also can set sc.socket(unix socket).
-// For convenience, you can set gosphinx.Host, gosphinx.Port, gosphinx.Socket as default value,
-// then you don't need to call SetServer() every time.
-func (sc *Client) SetServer(host string, port int) error {
-	var isSocketMode bool
+// Note: this func also can set sc.Socket(unix socket).
+// You can just use ""/0 as default value.
+func (sc *Client) SetServer(host string, port int) *Client {
+	isTcpMode := true
 
 	if host != "" {
-		sc.host = host
-
 		if host[0] == '/' {
-			sc.socket = host
-			isSocketMode = true
+			sc.Socket = host
+			isTcpMode = false
+		} else if len(host) > 7 && host[:7] == "unix://" {
+			sc.Socket = host[7:]
+			isTcpMode = false
+		} else {
+			sc.Host = host
 		}
-		if host[:7] == "unix://" {
-			sc.socket = host[7:]
-			isSocketMode = true
+	} else {
+		sc.Host = DefaultOptions.Host
+	}
+
+	if isTcpMode {
+		if port > 0 {
+			sc.Port = port
+		} else {
+			sc.Port = DefaultOptions.Port
 		}
 	}
 
-	if !isSocketMode && port <= 0 {
-		sc.err = fmt.Errorf("SetServer > port must be positive: %d", port)
-		return sc.err
-	}
-
-	sc.port = port
-	return nil
-}
-func (sc *Client) Server(host string, port int) *Client {
-	sc.err = sc.SetServer(host, port)
 	return sc
 }
 
-func (sc *Client) SetRetries(count, delay int) error {
+func (sc *Client) SetSqlServer(host string, sqlport int) *Client {
+	isTcpMode := true
+
+	if host != "" {
+		if host[0] == '/' {
+			sc.SqlSocket = host
+			isTcpMode = false
+		} else if len(host) > 7 && host[:7] == "unix://" {
+			sc.SqlSocket = host[7:]
+			isTcpMode = false
+		} else {
+			sc.Host = host
+		}
+	} else {
+		sc.Host = DefaultOptions.Host
+	}
+
+	if isTcpMode {
+		if sqlport > 0 {
+			sc.SqlPort = sqlport
+		} else {
+			sc.SqlPort = DefaultOptions.SqlPort
+		}
+	}
+
+	return sc
+}
+
+func (sc *Client) SetRetries(count, delay int) *Client {
 	if count < 0 {
 		sc.err = fmt.Errorf("SetRetries > count must not be negative: %d", count)
-		return sc.err
+		return sc
 	}
 	if delay < 0 {
 		sc.err = fmt.Errorf("SetRetries > delay must not be negative: %d", delay)
-		return sc.err
+		return sc
 	}
 
-	sc.retryCount = count
-	sc.retryDelay = delay
-	return nil
-}
-func (sc *Client) Retries(count, delay int) *Client {
-	sc.err = sc.SetRetries(count, delay)
+	sc.RetryCount = count
+	sc.RetryDelay = delay
 	return sc
 }
 
 // millisecond, not nanosecond.
-func (sc *Client) SetConnectTimeout(timeout int) error {
+func (sc *Client) SetConnectTimeout(timeout int) *Client {
 	if timeout < 0 {
 		sc.err = fmt.Errorf("SetConnectTimeout > connect timeout must not be negative: %d", timeout)
-		return sc.err
+		return sc
 	}
 
-	sc.timeout = time.Duration(timeout) * time.Millisecond
-	return nil
-}
-func (sc *Client) ConnectTimeout(timeout int) *Client {
-	sc.err = sc.SetConnectTimeout(timeout)
+	sc.Timeout = timeout
 	return sc
 }
 
@@ -418,63 +342,55 @@ func (sc *Client) IsConnectError() bool {
 /***** General query settings *****/
 
 // Set matches offset and limit to return to client, max matches to retrieve on server, and cutoff.
-func (sc *Client) SetLimits(offset, limit, maxMatches, cutoff int) error {
+func (sc *Client) SetLimits(offset, limit, maxMatches, cutoff int) *Client {
 	if offset < 0 {
 		sc.err = fmt.Errorf("SetLimits > offset must not be negative: %d", offset)
-		return sc.err
+		return sc
 	}
 	if limit <= 0 {
 		sc.err = fmt.Errorf("SetLimits > limit must be positive: %d", limit)
-		return sc.err
+		return sc
 	}
 	if maxMatches <= 0 {
 		sc.err = fmt.Errorf("SetLimits > maxMatches must be positive: %d", maxMatches)
-		return sc.err
+		return sc
 	}
 	if cutoff < 0 {
 		sc.err = fmt.Errorf("SetLimits > cutoff must not be negative: %d", cutoff)
-		return sc.err
+		return sc
 	}
 
-	sc.offset = offset
-	sc.limit = limit
+	sc.Offset = offset
+	sc.Limit = limit
 	if maxMatches > 0 {
-		sc.maxMatches = maxMatches
+		sc.MaxMatches = maxMatches
 	}
 	if cutoff > 0 {
-		sc.cutoff = cutoff
+		sc.Cutoff = cutoff
 	}
-	return nil
-}
-func (sc *Client) Limits(offset, limit, maxMatches, cutoff int) *Client {
-	sc.err = sc.SetLimits(offset, limit, maxMatches, cutoff)
 	return sc
 }
 
 // Set maximum query time, in milliseconds, per-index, 0 means "do not limit".
-func (sc *Client) SetMaxQueryTime(maxQueryTime int) error {
+func (sc *Client) SetMaxQueryTime(maxQueryTime int) *Client {
 	if maxQueryTime < 0 {
 		sc.err = fmt.Errorf("SetMaxQueryTime > maxQueryTime must not be negative: %d", maxQueryTime)
-		return sc.err
+		return sc
 	}
 
-	sc.maxQueryTime = maxQueryTime
-	return nil
-}
-func (sc *Client) MaxQueryTime(maxQueryTime int) *Client {
-	sc.err = sc.SetMaxQueryTime(maxQueryTime)
+	sc.MaxQueryTime = maxQueryTime
 	return sc
 }
 
-func (sc *Client) SetOverride(attrName string, attrType int, values map[uint64]interface{}) error {
+func (sc *Client) SetOverride(attrName string, attrType int, values map[uint64]interface{}) *Client {
 	if attrName == "" {
 		sc.err = errors.New("SetOverride > attrName is empty!")
-		return sc.err
+		return sc
 	}
 	// Min value is 'SPH_ATTR_INTEGER = 1', not '0'.
 	if (attrType < 1 || attrType > SPH_ATTR_STRING) && attrType != SPH_ATTR_MULTI && SPH_ATTR_MULTI != SPH_ATTR_MULTI64 {
 		sc.err = fmt.Errorf("SetOverride > invalid attrType: %d", attrType)
-		return sc.err
+		return sc
 	}
 
 	sc.overrides[attrName] = override{
@@ -482,146 +398,114 @@ func (sc *Client) SetOverride(attrName string, attrType int, values map[uint64]i
 		attrType: attrType,
 		values:   values,
 	}
-	return nil
-}
-func (sc *Client) Override(attrName string, attrType int, values map[uint64]interface{}) *Client {
-	sc.err = sc.SetOverride(attrName, attrType, values)
 	return sc
 }
 
-func (sc *Client) SetSelect(s string) error {
+func (sc *Client) SetSelect(s string) *Client {
 	if s == "" {
 		sc.err = errors.New("SetSelect > selectStr is empty!")
-		return sc.err
+		return sc
 	}
 
-	sc.selectStr = s
-	return nil
-}
-func (sc *Client) Select(s string) *Client {
-	sc.err = sc.SetSelect(s)
+	sc.Select = s
 	return sc
 }
 
 /***** Full-text search query settings *****/
 
-func (sc *Client) SetMatchMode(mode int) error {
+func (sc *Client) SetMatchMode(mode int) *Client {
 	if mode < 0 || mode > SPH_MATCH_EXTENDED2 {
 		sc.err = fmt.Errorf("SetMatchMode > unknown mode value; use one of the SPH_MATCH_xxx constants: %d", mode)
-		return sc.err
+		return sc
 	}
 
-	sc.mode = mode
-	return nil
-}
-func (sc *Client) MatchMode(mode int) *Client {
-	sc.err = sc.SetMatchMode(mode)
+	sc.MatchMode = mode
 	return sc
 }
 
-func (sc *Client) SetRankingMode(ranker int, rankexpr ...string) error {
+func (sc *Client) SetRankingMode(ranker int, rankexpr ...string) *Client {
 	if ranker < 0 || ranker > SPH_RANK_TOTAL {
 		sc.err = fmt.Errorf("SetRankingMode > unknown ranker value; use one of the SPH_RANK_xxx constants: %d", ranker)
-		return sc.err
+		return sc
 	}
-	
-	sc.ranker = ranker
-	
+
+	sc.RankMode = ranker
+
 	if len(rankexpr) > 0 {
 		if ranker != SPH_RANK_EXPR {
 			sc.err = fmt.Errorf("SetRankingMode > rankexpr must used with SPH_RANK_EXPR! ranker: %d  rankexpr: %s", ranker, rankexpr)
-			return sc.err
+			return sc
 		}
-		
-		sc.rankexpr = rankexpr[0]
+
+		sc.RankExpr = rankexpr[0]
 	}
-	
-	return nil
-}
-func (sc *Client) RankingMode(ranker int, rankexpr ...string) *Client {
-	sc.err = sc.SetRankingMode(ranker, rankexpr...)
+
 	return sc
 }
 
-func (sc *Client) SetSortMode(mode int, sortBy string) error {
+func (sc *Client) SetSortMode(mode int, sortBy string) *Client {
 	if mode < 0 || mode > SPH_SORT_EXPR {
 		sc.err = fmt.Errorf("SetSortMode > unknown mode value; use one of the available SPH_SORT_xxx constants: %d", mode)
-		return sc.err
+		return sc
 	}
 	/*SPH_SORT_RELEVANCE ignores any additional parameters and always sorts matches by relevance rank.
 	All other modes require an additional sorting clause.*/
 	if (mode != SPH_SORT_RELEVANCE) && (sortBy == "") {
 		sc.err = fmt.Errorf("SetSortMode > sortby string must not be empty in selected mode: %d", mode)
-		return sc.err
+		return sc
 	}
 
-	sc.sort = mode
-	sc.sortBy = sortBy
-	return nil
-}
-func (sc *Client) SortMode(mode int, sortBy string) *Client {
-	sc.err = sc.SetSortMode(mode, sortBy)
+	sc.SortMode = mode
+	sc.SortBy = sortBy
 	return sc
 }
 
-func (sc *Client) SetFieldWeights(weights map[string]int) error {
+func (sc *Client) SetFieldWeights(weights map[string]int) *Client {
 	// Default weight value is 1.
 	for field, weight := range weights {
 		if weight < 1 {
 			sc.err = fmt.Errorf("SetFieldWeights > weights must be positive 32-bit integers, field:%s  weight:%d", field, weight)
-			return sc.err
+			return sc
 		}
 	}
 
 	sc.fieldWeights = weights
-	return nil
-}
-func (sc *Client) FieldWeights(weights map[string]int) *Client {
-	sc.err = sc.SetFieldWeights(weights)
 	return sc
 }
 
-func (sc *Client) SetIndexWeights(weights map[string]int) error {
+func (sc *Client) SetIndexWeights(weights map[string]int) *Client {
 	for field, weight := range weights {
 		if weight < 1 {
 			sc.err = fmt.Errorf("SetIndexWeights > weights must be positive 32-bit integers, field:%s  weight:%d", field, weight)
-			return sc.err
+			return sc
 		}
 	}
 
 	sc.indexWeights = weights
-	return nil
-}
-func (sc *Client) IndexWeights(weights map[string]int) *Client {
-	sc.err = sc.SetIndexWeights(weights)
 	return sc
 }
 
 /***** Result set filtering settings *****/
 
-func (sc *Client) SetIDRange(min, max uint64) error {
+func (sc *Client) SetIDRange(min, max uint64) *Client {
 	if min > max {
 		sc.err = fmt.Errorf("SetIDRange > min > max! min:%d  max:%d", min, max)
-		return sc.err
+		return sc
 	}
 
-	sc.minId = min
-	sc.maxId = max
-	return nil
-}
-func (sc *Client) IDRange(min, max uint64) *Client {
-	sc.err = sc.SetIDRange(min, max)
+	sc.MinId = min
+	sc.MaxId = max
 	return sc
 }
 
-func (sc *Client) SetFilter(attr string, values []uint64, exclude bool) error {
+func (sc *Client) SetFilter(attr string, values []uint64, exclude bool) *Client {
 	if attr == "" {
 		sc.err = fmt.Errorf("SetFilter > attribute name is empty!")
-		return sc.err
+		return sc
 	}
 	if len(values) == 0 {
 		sc.err = fmt.Errorf("SetFilter > values is empty!")
-		return sc.err
+		return sc
 	}
 
 	sc.filters = append(sc.filters, filter{
@@ -630,21 +514,17 @@ func (sc *Client) SetFilter(attr string, values []uint64, exclude bool) error {
 		values:     values,
 		exclude:    exclude,
 	})
-	return nil
-}
-func (sc *Client) Filter(attr string, values []uint64, exclude bool) *Client {
-	sc.err = sc.SetFilter(attr, values, exclude)
 	return sc
 }
 
-func (sc *Client) SetFilterRange(attr string, umin, umax uint64, exclude bool) error {
+func (sc *Client) SetFilterRange(attr string, umin, umax uint64, exclude bool) *Client {
 	if attr == "" {
 		sc.err = fmt.Errorf("SetFilterRange > attribute name is empty!")
-		return sc.err
+		return sc
 	}
 	if umin > umax {
 		sc.err = fmt.Errorf("SetFilterRange > min > max! umin:%d  umax:%d", umin, umax)
-		return sc.err
+		return sc
 	}
 
 	sc.filters = append(sc.filters, filter{
@@ -654,21 +534,17 @@ func (sc *Client) SetFilterRange(attr string, umin, umax uint64, exclude bool) e
 		umax:       umax,
 		exclude:    exclude,
 	})
-	return nil
-}
-func (sc *Client) FilterRange(attr string, umin, umax uint64, exclude bool) *Client {
-	sc.err = sc.SetFilterRange(attr, umin, umax, exclude)
 	return sc
 }
 
-func (sc *Client) SetFilterFloatRange(attr string, fmin, fmax float32, exclude bool) error {
+func (sc *Client) SetFilterFloatRange(attr string, fmin, fmax float32, exclude bool) *Client {
 	if attr == "" {
 		sc.err = fmt.Errorf("SetFilterFloatRange > attribute name is empty!")
-		return sc.err
+		return sc
 	}
 	if fmin > fmax {
 		sc.err = fmt.Errorf("SetFilterFloatRange > min > max! fmin:%d  fmax:%d", fmin, fmax)
-		return sc.err
+		return sc
 	}
 
 	sc.filters = append(sc.filters, filter{
@@ -678,63 +554,47 @@ func (sc *Client) SetFilterFloatRange(attr string, fmin, fmax float32, exclude b
 		fmax:       fmax,
 		exclude:    exclude,
 	})
-	return nil
-}
-func (sc *Client) FilterFloatRange(attr string, fmin, fmax float32, exclude bool) *Client {
-	sc.err = sc.SetFilterFloatRange(attr, fmin, fmax, exclude)
 	return sc
 }
 
 // The latitude and longitude are expected to be in radians. Use DegreeToRadian() to transform degree values.
-func (sc *Client) SetGeoAnchor(latitudeAttr, longitudeAttr string, latitude, longitude float32) error {
+func (sc *Client) SetGeoAnchor(latitudeAttr, longitudeAttr string, latitude, longitude float32) *Client {
 	if latitudeAttr == "" {
 		sc.err = fmt.Errorf("SetGeoAnchor > latitudeAttr is empty!")
-		return sc.err
+		return sc
 	}
 	if longitudeAttr == "" {
 		sc.err = fmt.Errorf("SetGeoAnchor > longitudeAttr is empty!")
-		return sc.err
+		return sc
 	}
 
-	sc.latitudeAttr = latitudeAttr
-	sc.longitudeAttr = longitudeAttr
-	sc.latitude = latitude
-	sc.longitude = longitude
-	return nil
-}
-func (sc *Client) GeoAnchor(latitudeAttr, longitudeAttr string, latitude, longitude float32) *Client {
-	sc.err = sc.SetGeoAnchor(latitudeAttr, longitudeAttr, latitude, longitude)
+	sc.LatitudeAttr = latitudeAttr
+	sc.LongitudeAttr = longitudeAttr
+	sc.Latitude = latitude
+	sc.Longitude = longitude
 	return sc
 }
 
 /***** GROUP BY settings *****/
 
-func (sc *Client) SetGroupBy(groupBy string, groupFunc int, groupSort string) error {
+func (sc *Client) SetGroupBy(groupBy string, groupFunc int, groupSort string) *Client {
 	if groupFunc < 0 || groupFunc > SPH_GROUPBY_ATTRPAIR {
 		sc.err = fmt.Errorf("SetGroupBy > unknown groupFunc value: '%d', use one of the available SPH_GROUPBY_xxx constants.", groupFunc)
-		return sc.err
+		return sc
 	}
 
-	sc.groupBy = groupBy
-	sc.groupFunc = groupFunc
-	sc.groupSort = groupSort
-	return nil
-}
-func (sc *Client) GroupBy(groupBy string, groupFunc int, groupSort string) *Client {
-	sc.err = sc.SetGroupBy(groupBy, groupFunc, groupSort)
+	sc.GroupBy = groupBy
+	sc.GroupFunc = groupFunc
+	sc.GroupSort = groupSort
 	return sc
 }
 
-func (sc *Client) SetGroupDistinct(groupDistinct string) error {
+func (sc *Client) SetGroupDistinct(groupDistinct string) *Client {
 	if groupDistinct == "" {
 		sc.err = errors.New("SetGroupDistinct > groupDistinct is empty!")
-		return sc.err
+		return sc
 	}
-	sc.groupDistinct = groupDistinct
-	return nil
-}
-func (sc *Client) GroupDistinct(groupDistinct string) *Client {
-	sc.err = sc.SetGroupDistinct(groupDistinct)
+	sc.GroupDistinct = groupDistinct
 	return sc
 }
 
@@ -771,15 +631,15 @@ func (sc *Client) Query(query, index, comment string) (result *Result, err error
 func (sc *Client) AddQuery(query, index, comment string) (i int, err error) {
 	var req []byte
 
-	req = writeInt32ToBytes(req, sc.offset)
-	req = writeInt32ToBytes(req, sc.limit)
-	req = writeInt32ToBytes(req, sc.mode)
-	req = writeInt32ToBytes(req, sc.ranker)
-	if sc.ranker == SPH_RANK_EXPR {
-		req = writeLenStrToBytes(req, sc.rankexpr)
+	req = writeInt32ToBytes(req, sc.Offset)
+	req = writeInt32ToBytes(req, sc.Limit)
+	req = writeInt32ToBytes(req, sc.MatchMode)
+	req = writeInt32ToBytes(req, sc.RankMode)
+	if sc.RankMode == SPH_RANK_EXPR {
+		req = writeLenStrToBytes(req, sc.RankExpr)
 	}
-	req = writeInt32ToBytes(req, sc.sort)
-	req = writeLenStrToBytes(req, sc.sortBy)
+	req = writeInt32ToBytes(req, sc.SortMode)
+	req = writeLenStrToBytes(req, sc.SortBy)
 	req = writeLenStrToBytes(req, query)
 
 	req = writeInt32ToBytes(req, len(sc.weights))
@@ -790,8 +650,8 @@ func (sc *Client) AddQuery(query, index, comment string) (i int, err error) {
 	req = writeLenStrToBytes(req, index)
 
 	req = writeInt32ToBytes(req, 1) // id64 range marker
-	req = writeInt64ToBytes(req, sc.minId)
-	req = writeInt64ToBytes(req, sc.maxId)
+	req = writeInt64ToBytes(req, sc.MinId)
+	req = writeInt64ToBytes(req, sc.MaxId)
 
 	req = writeInt32ToBytes(req, len(sc.filters))
 	for _, f := range sc.filters {
@@ -819,26 +679,26 @@ func (sc *Client) AddQuery(query, index, comment string) (i int, err error) {
 		}
 	}
 
-	req = writeInt32ToBytes(req, sc.groupFunc)
-	req = writeLenStrToBytes(req, sc.groupBy)
+	req = writeInt32ToBytes(req, sc.GroupFunc)
+	req = writeLenStrToBytes(req, sc.GroupBy)
 
-	req = writeInt32ToBytes(req, sc.maxMatches)
-	req = writeLenStrToBytes(req, sc.groupSort)
+	req = writeInt32ToBytes(req, sc.MaxMatches)
+	req = writeLenStrToBytes(req, sc.GroupSort)
 
-	req = writeInt32ToBytes(req, sc.cutoff)
-	req = writeInt32ToBytes(req, sc.retryCount)
-	req = writeInt32ToBytes(req, sc.retryDelay)
+	req = writeInt32ToBytes(req, sc.Cutoff)
+	req = writeInt32ToBytes(req, sc.RetryCount)
+	req = writeInt32ToBytes(req, sc.RetryDelay)
 
-	req = writeLenStrToBytes(req, sc.groupDistinct)
+	req = writeLenStrToBytes(req, sc.GroupDistinct)
 
-	if sc.latitudeAttr == "" || sc.longitudeAttr == "" {
+	if sc.LatitudeAttr == "" || sc.LongitudeAttr == "" {
 		req = writeInt32ToBytes(req, 0)
 	} else {
 		req = writeInt32ToBytes(req, 1)
-		req = writeLenStrToBytes(req, sc.latitudeAttr)
-		req = writeLenStrToBytes(req, sc.longitudeAttr)
-		req = writeFloat32ToBytes(req, sc.latitude)
-		req = writeFloat32ToBytes(req, sc.longitude)
+		req = writeLenStrToBytes(req, sc.LatitudeAttr)
+		req = writeLenStrToBytes(req, sc.LongitudeAttr)
+		req = writeFloat32ToBytes(req, sc.Latitude)
+		req = writeFloat32ToBytes(req, sc.Longitude)
 	}
 
 	req = writeInt32ToBytes(req, len(sc.indexWeights))
@@ -847,7 +707,7 @@ func (sc *Client) AddQuery(query, index, comment string) (i int, err error) {
 		req = writeInt32ToBytes(req, wei)
 	}
 
-	req = writeInt32ToBytes(req, sc.maxQueryTime)
+	req = writeInt32ToBytes(req, sc.MaxQueryTime)
 
 	req = writeInt32ToBytes(req, len(sc.fieldWeights))
 	for fie, wei := range sc.fieldWeights {
@@ -879,7 +739,7 @@ func (sc *Client) AddQuery(query, index, comment string) (i int, err error) {
 	}
 
 	// select-list
-	req = writeLenStrToBytes(req, sc.selectStr)
+	req = writeLenStrToBytes(req, sc.Select)
 
 	// send query, get response
 	sc.reqs = append(sc.reqs, req)
@@ -1053,17 +913,17 @@ func (sc *Client) ResetFilters() {
 	sc.filters = []filter{}
 
 	/* reset GEO anchor */
-	sc.latitudeAttr = ""
-	sc.longitudeAttr = ""
-	sc.latitude = 0.0
-	sc.longitude = 0.0
+	sc.LatitudeAttr = ""
+	sc.LongitudeAttr = ""
+	sc.Latitude = 0.0
+	sc.Longitude = 0.0
 }
 
 func (sc *Client) ResetGroupBy() {
-	sc.groupBy = ""
-	sc.groupFunc = SPH_GROUPBY_DAY
-	sc.groupSort = "@group desc"
-	sc.groupDistinct = ""
+	sc.GroupBy = ""
+	sc.GroupFunc = SPH_GROUPBY_DAY
+	sc.GroupSort = "@group desc"
+	sc.GroupDistinct = ""
 }
 
 /***** Additional functionality *****/
@@ -1078,13 +938,13 @@ type ExcerptsOpts struct {
 	ExactPhrase        bool   // Whether to highlight exact query phrase matches only instead of individual keywords.
 	SinglePassage      bool   // Whether to extract single best passage only.
 	UseBoundaries      bool   // Whether to additionaly break passages by phrase boundary characters, as configured in index settings with phrase_boundary directive.
-	WeightOrder        bool   // Whether to sort the extracted passages in order of relevance (decreasing weight), or in order of appearance in the document (increasing position). 
-	QueryMode          bool   // Whether to handle $words as a query in extended syntax, or as a bag of words (default behavior). 
+	WeightOrder        bool   // Whether to sort the extracted passages in order of relevance (decreasing weight), or in order of appearance in the document (increasing position).
+	QueryMode          bool   // Whether to handle $words as a query in extended syntax, or as a bag of words (default behavior).
 	ForceAllWords      bool   // Ignores the snippet length limit until it includes all the keywords.
 	LimitPassages      int    // Limits the maximum number of passages that can be included into the snippet. default is 0 (no limit).
 	LimitWords         int    // Limits the maximum number of keywords that can be included into the snippet. default is 0 (no limit).
 	StartPassageId     int    // Specifies the starting value of %PASSAGE_ID% macro (that gets detected and expanded in BeforeMatch, AfterMatch strings). default is 1.
-	LoadFiles          bool   // Whether to handle $docs as data to extract snippets from (default behavior), or to treat it as file names, and load data from specified files on the server side. 
+	LoadFiles          bool   // Whether to handle $docs as data to extract snippets from (default behavior), or to treat it as file names, and load data from specified files on the server side.
 	LoadFilesScattered bool   // It assumes "load_files" option, and works only with distributed snippets generation with remote agents. The source files for snippets could be distributed among different agents, and the main daemon will merge together all non-erroneous results. So, if one agent of the distributed index has 'file1.txt', another has 'file2.txt' and you call for the snippets with both these files, the sphinx will merge results from the agents together, so you will get the snippets from both 'file1.txt' and 'file2.txt'.
 	HtmlStripMode      string // HTML stripping mode setting. Defaults to "index", allowed values are "none", "strip", "index", and "retain".
 	AllowEmpty         bool   // Allows empty string to be returned as highlighting result when a snippet could not be generated (no keywords match, or no passages fit the limit). By default, the beginning of original text would be returned instead of an empty string.
@@ -1397,23 +1257,25 @@ func (sc *Client) connect() (err error) {
 	// set connerror to false.
 	sc.connerror = false
 
+	timeout := time.Duration(sc.Timeout) * time.Millisecond
+
 	// Try unix socket first.
-	if sc.socket != "" {
-		if sc.conn, err = net.DialTimeout("unix", sc.socket, sc.timeout); err != nil {
+	if sc.Socket != "" {
+		if sc.conn, err = net.DialTimeout("unix", sc.Socket, timeout); err != nil {
 			sc.connerror = true
-			return fmt.Errorf("connect() net.DialTimeout(%d ms) > %v", sc.timeout/time.Millisecond, err)
+			return fmt.Errorf("connect() net.DialTimeout(%d ms) > %v", sc.Timeout, err)
 		}
-	} else if sc.port > 0 {
-		if sc.conn, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", sc.host, sc.port), sc.timeout); err != nil {
+	} else if sc.Port > 0 {
+		if sc.conn, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", sc.Host, sc.Port), timeout); err != nil {
 			sc.connerror = true
-			return fmt.Errorf("connect() net.DialTimeout(%d ms) > %v", sc.timeout/time.Millisecond, err)
+			return fmt.Errorf("connect() net.DialTimeout(%d ms) > %v", sc.Timeout, err)
 		}
 	} else {
 		return fmt.Errorf("connect() > No valid socket or port!\n%Client: #v", sc)
 	}
 
-	deadTime := time.Now().Add(time.Duration(sc.timeout) * time.Millisecond)
-	if err = sc.conn.SetDeadline(deadTime); err != nil {
+	// Set deadline
+	if err = sc.conn.SetDeadline(time.Now().Add(timeout)); err != nil {
 		sc.connerror = true
 		return fmt.Errorf("connect() conn.SetDeadline() > %v", err)
 	}
